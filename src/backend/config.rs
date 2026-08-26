@@ -1,0 +1,60 @@
+use crate::error::*;
+use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
+use tokio::sync::RwLock;
+use tracing::{debug, info};
+
+static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
+
+pub fn global_config() -> &'static RwLock<Config> {
+    CONFIG.get().expect("Config not initialized") // expect is safe here because CONFIG is initialized at startup
+}
+
+fn config_path() -> String {
+    std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "config.json".to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub fullscreen: bool,
+    pub window_width: f32,
+    pub window_height: f32,
+
+    pub http_server: String,
+    pub webhook_url: String,                 //runtime
+    pub retry_cooldown: std::time::Duration, //runtime
+
+    pub color: iced::Color,
+    pub background_color: iced::Color,
+
+    pub drift_range: i32,
+    pub drift_interval: std::time::Duration,
+    pub split_timeout: std::time::Duration,
+
+    pub animation: bool,                                 //runtime
+    pub animation_duration: std::time::Duration,         //runtime
+    pub animation_panel_fade_delay: std::time::Duration, // runtime
+}
+
+impl Config {
+    pub fn load() -> Result<&'static RwLock<Config>> {
+        info!("Loading config from {}", config_path());
+
+        let config_file = std::fs::File::open(config_path())?;
+        let config = serde_json::from_reader(config_file)?;
+
+        debug!("Loaded config:\n{:#?}", config);
+
+        let config = CONFIG.get_or_init(|| RwLock::new(config));
+        Ok(config)
+    }
+    pub fn save(&self) -> Result<()> {
+        info!("Saving config to {}", config_path());
+
+        let config_json = serde_json::to_string_pretty(self)?;
+        std::fs::write(config_path(), config_json)?;
+        Ok(())
+    }
+}
