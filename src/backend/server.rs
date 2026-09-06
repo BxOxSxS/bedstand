@@ -1,12 +1,25 @@
 use crate::backend::config::global_config;
-use crate::backend::data::{Data, global_data};
+use crate::backend::data::global_data;
 use crate::error::*;
-use axum::{Router, body::Bytes, extract::DefaultBodyLimit, http::StatusCode, routing::post};
+use axum::{Router, extract::DefaultBodyLimit, routing::{get, post}};
 use tracing::{debug, info};
+use crate::backend::handlers::*;
 
 pub async fn run() -> Result<()> {
     let app = Router::new()
         .route("/update", post(update_handler))
+        .route("/settings/restart", post(restart))
+        .route("/settings/poweroff", post(poweroff))
+        .route("/settings/reboot", post(reboot_handler))
+        .route("/settings/brightness", get(get_brightness))
+        .route("/settings/brightness", post(set_brightness))
+        .route("/settings/runtime_config", get(get_runtime_config))
+        .route("/settings/runtime_config", post(set_runtime_config))
+        .route("/settings/config", get(get_config))
+        .route("/settings/config", post(set_config))
+        .route("/settings/data", get(get_data))
+        .route("/settings/logs", get(logs))
+
         .layer(DefaultBodyLimit::max(256 * 1024)); //256KiB
 
     let addr = {
@@ -20,24 +33,6 @@ pub async fn run() -> Result<()> {
     match axum::serve(listener, app).await {
         Ok(_) => Ok(()),
         Err(err) => Err(Error::new(format!("HTTP server error: {err}"))),
-    }
-}
-
-async fn update_handler(body: Bytes) -> StatusCode {
-    let json = match std::str::from_utf8(&body) {
-        Ok(json) => json,
-        Err(_) => {
-            let _ = Error::new("Invalid UTF-8 in request body");
-            return StatusCode::BAD_REQUEST;
-        }
-    };
-
-    match Data::update(json) {
-        Ok(()) => StatusCode::OK,
-        Err(err) => {
-            let _ = Error::new(format!("Data update failed: {err}"));
-            StatusCode::BAD_REQUEST
-        }
     }
 }
 

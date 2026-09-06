@@ -6,7 +6,7 @@ use iced::{
     widget::{column, text},
 };
 
-use crate::backend::data::Data;
+use crate::backend::data::global_data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClockMessage {
@@ -22,7 +22,7 @@ pub struct Clock {
 
 impl Clock {
     pub(crate) fn new() -> Self {
-        let alarm = if let Some(alarm) = *Data::get().alarm.get() {
+        let alarm = if let Some(alarm) = *global_data().alarm.get() {
             alarm.format("%H:%M").to_string()
         } else {
             String::new()
@@ -84,7 +84,7 @@ impl Clock {
     pub(crate) fn subscription(&self) -> Subscription<ClockMessage> {
         Subscription::batch([
             time::every(Duration::from_millis(250)).map(|_| ClockMessage::Tick(Local::now())),
-            Data::get().alarm.subscription(ClockMessage::AlarmChanged),
+            global_data().alarm.subscription(ClockMessage::AlarmChanged),
         ])
     }
 }

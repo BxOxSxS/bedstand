@@ -17,3 +17,6 @@ regex = "1"
 
 axum = "0.8"
 reqwest = { version = "0.13" }
+nix = { version = "0", features = ["process", "reboot"] }
+linemux = "0.3.0"
+tokio-stream = "0"

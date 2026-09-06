@@ -1,0 +1,180 @@
+use axum::{
+    body::{Body, Bytes},
+    http::{header, Response, StatusCode},
+};
+use linemux::MuxedLines;
+use nix::{
+    sys::reboot::{reboot, RebootMode},
+    unistd::execv,
+};
+use std::{
+    env::current_exe,
+    ffi::CString,
+    os::unix::ffi::OsStrExt,
+};
+use tokio_stream::wrappers::ReceiverStream;
+use tracing::info;
+use crate::backend::config::{global_config, Config, config_path};
+use crate::backend::data::{global_data, Data};
+use crate::error::*;
+
+pub async fn update_handler(body: Bytes) -> HttpResult<()> {
+    let json = match std::str::from_utf8(&body) {
+        Ok(json) => json,
+        Err(_) => {
+            let e = Error::new("Invalid UTF-8 in request body");
+            return Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST));
+        }
+    };
+
+    match Data::update(json) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            let e = Error::new(format!("Data update failed: {err}"));
+            Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST))
+        }
+    }
+}
+
+pub async fn restart() -> HttpResult<()> {
+    let exe = current_exe()?;
+    let exe = CString::new(exe.as_os_str().as_bytes())?;
+    let args: Vec<CString> = std::env::args_os()
+        .map(|x| CString::new(x.as_bytes()).unwrap())
+        .collect();
+
+    // Use spawn and wait to avoid restart before response
+    tokio::spawn(async move {
+        info!("Restarting application...\n");
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        match execv(&exe, &args) {
+            Ok(_) => (),
+            Err(err) => {
+                let _ = Error::new(format!("Failed to restart: {err}"));
+            }
+        }
+    });
+
+    Ok(())
+}
+
+pub async fn poweroff() -> HttpResult<()> {
+    tokio::spawn(async move {
+        info!("Powering off system...\n");
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        match reboot(RebootMode::RB_POWER_OFF) {
+            Ok(_) => (),
+            Err(err) => {
+                let _ = Error::new(format!("Failed to power off: {err}"));
+            }
+        }
+    });
+    Ok(())
+}
+
+pub async fn reboot_handler() -> HttpResult<()> {
+    tokio::spawn(async move {
+        info!("Rebooting system...\n");
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        match reboot(RebootMode::RB_AUTOBOOT) {
+            Ok(_) => (),
+            Err(err) => {
+                let _ = Error::new(format!("Failed to reboot: {err}"));
+            }
+        }
+    });
+    Ok(())
+}
+
+const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness";
+const MAX_BRIGHTNESS: u8 = 24;
+
+pub async fn get_brightness() -> HttpResult<String> {
+    let value_str = std::fs::read_to_string(BRIGHTNESS_PATH)
+        .map_err(|e| Error::new(format!("Failed to read brightness: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    Ok(value_str)
+}
+
+pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
+    let value: u8 = std::str::from_utf8(&body)
+        .map_err(|e| Error::new(format!("Failed to parse brightness: {e}")).into_http_error(StatusCode::BAD_REQUEST))?
+        .parse()
+        .map_err(|e| Error::new(format!("Failed to parse brightness: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+
+    if value > MAX_BRIGHTNESS {
+        let e = Error::new(format!("Brightness value must be between 0 and {}", MAX_BRIGHTNESS));
+        return Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST));
+    }
+
+    info!("Setting brightness to {value}");
+
+    std::fs::write(BRIGHTNESS_PATH, value.to_string())
+        .map_err(|e| Error::new(format!("Failed to set brightness: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    Ok(())
+}
+
+pub async fn get_runtime_config() -> HttpResult<String> {
+    let config = global_config().read().await;
+    let config_json = serde_json::to_string_pretty(&*config)?;
+    Ok(config_json)
+}
+
+pub async fn set_runtime_config(body: Bytes) -> HttpResult<()> {
+    let new_config: Config = serde_json::from_slice(&body).map_err(|e| Error::new(format!("Failed to parse runtime config: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+
+    info!("Setting runtime config:\n{new_config:#?}");
+
+    let mut config = global_config().write().await;
+    *config = new_config;
+
+    Ok(())
+}
+
+pub async fn get_config() -> HttpResult<String> {
+    let config_str = std::fs::read_to_string(config_path())
+        .map_err(|e| Error::new(format!("Failed to read config file: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    Ok(config_str)
+}
+
+pub async fn set_config(body: Bytes) -> HttpResult<()> {
+    let new_config: Config = serde_json::from_slice(&body).map_err(|e| Error::new(format!("Failed to parse config: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+
+    new_config.save().map_err(|e| Error::new(format!("Failed to save config: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    info!("Setting config:\n{new_config:#?}");
+
+    let mut config = global_config().write().await;
+    *config = new_config;
+
+    Ok(())
+}
+
+pub async fn get_data() -> HttpResult<String> {
+    let data = global_data();
+    let data_str = format!("{:#?}", data);
+    Ok(data_str)
+}
+
+pub async fn logs() -> Result<Response<Body>> {
+    let (tx, rx) = tokio::sync::mpsc::channel::<std::result::Result<Bytes, std::io::Error>>(64);
+
+    tokio::spawn(async move {
+        let mut lines = MuxedLines::new()?;
+        lines.add_file_from_start(crate::LOG_FILE).await?;
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            let bytes = Bytes::from(format!("{}\n", line.line()));
+
+            if tx.send(Ok(bytes)).await.is_err() {
+                // client disconnected, stop sending logs
+                break;
+            }
+        }
+        Ok::<(), Error>(())
+    });
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(ReceiverStream::new(rx)))?)
+}

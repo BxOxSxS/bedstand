@@ -1,3 +1,5 @@
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use tracing::{error, warn};
 
 const IGNORED: [&str; 0] = [];
@@ -109,6 +111,13 @@ impl Error {
         }
         error!("{} {}", location, message);
         new
+    }
+
+    pub fn into_http_error(self, status: StatusCode) -> HttpError {
+        HttpError {
+            status,
+            error: self,
+        }
     }
 }
 
@@ -239,5 +248,45 @@ impl std::fmt::Display for Error {
             .collect::<Vec<String>>()
             .join(">");
         write!(f, "{} {}", location, self.message)
+    }
+}
+
+pub type HttpResult<T> = std::result::Result<T, HttpError>;
+
+pub struct HttpError {
+    pub status: StatusCode,
+    pub error: Error,
+}
+
+impl <T: std::error::Error> From<T> for HttpError {
+    fn from(error: T) -> Self {
+        let error = Error::from(error);
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            error,
+        }
+    }
+}
+
+impl Into<HttpError> for Error {
+    fn into(self) -> HttpError {
+        HttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            error: self,
+        }
+    }
+}
+
+impl IntoResponse for HttpError {
+    fn into_response(self) -> Response {
+        let body = format!("Error: {}\n", self.error);
+        (self.status, body).into_response()
+    }
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let body = format!("Error: {}\n", self);
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
     }
 }

@@ -37,11 +37,7 @@ struct IncomingCalendarEvent {
     start: i64,
 }
 
-impl Data {
-    pub fn get() -> Self {
-        global_data().clone()
-    }
-
+impl Data { 
     pub fn update(json: &str) -> Result<()> {
         info!("Updating data from JSON");
 

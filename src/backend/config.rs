@@ -10,7 +10,7 @@ pub fn global_config() -> &'static RwLock<Config> {
     CONFIG.get().expect("Config not initialized") // expect is safe here because CONFIG is initialized at startup
 }
 
-fn config_path() -> String {
+pub fn config_path() -> String {
     std::env::args()
         .nth(1)
         .unwrap_or_else(|| "config.json".to_string())
