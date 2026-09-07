@@ -12,6 +12,7 @@ use std::{
     ffi::CString,
     os::unix::ffi::OsStrExt,
 };
+use axum::response::Html;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::info;
 use crate::backend::config::{global_config, Config, config_path};
@@ -177,4 +178,8 @@ pub async fn logs() -> Result<Response<Body>> {
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(Body::from_stream(ReceiverStream::new(rx)))?)
+}
+
+pub async fn settings() -> Html<&'static str> {
+    Html::from(include_str!("../../assets/settings.html"))
 }

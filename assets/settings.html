@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Settings</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+        }
+
+        details {
+            margin-bottom: 12px;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        button {
+            margin: 6px 6px 6px 0;
+            padding: 6px 10px;
+            background: #111;
+            color: #fff;
+            border: 1px solid #555;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #222;
+        }
+
+        textarea,
+        pre,
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #000;
+            color: #fff;
+            border: 1px solid #444;
+            font: inherit;
+        }
+
+        textarea {
+            min-height: 180px;
+            resize: vertical;
+            padding: 8px;
+        }
+
+        pre {
+            margin: 8px 0 0;
+            padding: 8px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            max-height: 500px;
+            overflow: auto;
+        }
+
+        .row {
+            margin-top: 8px;
+        }
+
+        .status {
+            margin-top: 8px;
+            min-height: 1em;
+        }
+    </style>
+</head>
+
+<body>
+<details id="logsSection" open>
+    <summary>Logs</summary>
+    <pre id="logs"></pre>
+</details>
+
+<details>
+    <summary>Data</summary>
+
+    <details>
+        <summary>Preview</summary>
+        <pre id="dataPreview"></pre>
+    </details>
+
+    <div class="row">
+        <button onclick="getData()">Fetch data</button>
+    </div>
+
+    <div class="row">
+        <textarea id="dataInput" placeholder="JSON"></textarea>
+    </div>
+
+    <button onclick="sendData()">Send data</button>
+    <div id="dataStatus" class="status"></div>
+</details>
+
+<details>
+    <summary>Config</summary>
+
+    <div class="row">
+        <button onclick="getRuntimeConfig()">Fetch runtime config</button>
+        <button onclick="getConfig()">Fetch config</button>
+    </div>
+
+    <div class="row">
+        <textarea id="configInput" placeholder="JSON"></textarea>
+    </div>
+
+    <button onclick="setRuntimeConfig()">Upload runtime config</button>
+    <button onclick="setConfig()">Upload config</button>
+
+    <div id="configStatus" class="status"></div>
+</details>
+
+<details id="systemSection" open>
+    <summary>System</summary>
+
+    <div class="row">
+        <button onclick="systemAction('/settings/restart')">Restart</button>
+        <button onclick="systemAction('/settings/reboot')">Reboot</button>
+        <button onclick="systemAction('/settings/poweroff')">Poweroff</button>
+    </div>
+
+    <div class="row">
+        <button onclick="getBrightness()">Fetch brightness</button>
+        <input id="brightness" type="number" min="0" max="24" placeholder="Brightness">
+        <button onclick="setBrightness()">Set brightness</button>
+    </div>
+
+    <div id="systemStatus" class="status"></div>
+</details>
+
+<script>
+    async function request(url, options = {}) {
+        const response = await fetch(url, options);
+        const text = await response.text();
+
+        if (!response.ok) {
+            throw new Error(text || `${response.status} ${response.statusText}`);
+        }
+
+        return text;
+    }
+
+    function setStatus(id, message) {
+        document.getElementById(id).textContent = message;
+    }
+
+    async function getData() {
+        try {
+            document.getElementById("dataPreview").textContent =
+                await request("/settings/data");
+            setStatus("dataStatus", "");
+        } catch (e) {
+            setStatus("dataStatus", e.message);
+        }
+    }
+
+    async function sendData() {
+        try {
+            await request("/update", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: document.getElementById("dataInput").value
+            });
+
+            setStatus("dataStatus", "OK");
+        } catch (e) {
+            setStatus("dataStatus", e.message);
+        }
+    }
+
+    async function getRuntimeConfig() {
+        try {
+            document.getElementById("configInput").value =
+                await request("/settings/runtime_config");
+            setStatus("configStatus", "");
+        } catch (e) {
+            setStatus("configStatus", e.message);
+        }
+    }
+
+    async function getConfig() {
+        try {
+            document.getElementById("configInput").value =
+                await request("/settings/config");
+            setStatus("configStatus", "");
+        } catch (e) {
+            setStatus("configStatus", e.message);
+        }
+    }
+
+    async function setRuntimeConfig() {
+        try {
+            await request("/settings/runtime_config", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: document.getElementById("configInput").value
+            });
+
+            setStatus("configStatus", "Runtime config updated");
+        } catch (e) {
+            setStatus("configStatus", e.message);
+        }
+    }
+
+    async function setConfig() {
+        try {
+            await request("/settings/config", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: document.getElementById("configInput").value
+            });
+
+            setStatus("configStatus", "Config saved");
+        } catch (e) {
+            setStatus("configStatus", e.message);
+        }
+    }
+
+    async function systemAction(url) {
+        try {
+            await request(url, { method: "POST" });
+            setStatus("systemStatus", "OK");
+        } catch (e) {
+            setStatus("systemStatus", e.message);
+        }
+    }
+
+    async function getBrightness() {
+        try {
+            const value = await request("/settings/brightness");
+            document.getElementById("brightness").value = value.trim();
+            setStatus("systemStatus", "");
+        } catch (e) {
+            setStatus("systemStatus", e.message);
+        }
+    }
+
+    async function setBrightness() {
+        try {
+            const value = document.getElementById("brightness").value;
+
+            await request("/settings/brightness", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "text/plain"
+                },
+                body: value
+            });
+
+            setStatus("systemStatus", "OK");
+        } catch (e) {
+            setStatus("systemStatus", e.message);
+        }
+    }
+
+    function scrollLogsToBottom() {
+        const output = document.getElementById("logs");
+        output.scrollTop = output.scrollHeight;
+    }
+
+    async function loadLogs() {
+        const output = document.getElementById("logs");
+
+        try {
+            const response = await fetch("/settings/logs");
+
+            if (!response.ok || !response.body) {
+                throw new Error(
+                    await response.text() ||
+                    `${response.status} ${response.statusText}`
+                );
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { value, done } = await reader.read();
+
+                if (done) {
+                    break;
+                }
+
+                output.textContent += decoder.decode(value, {
+                    stream: true
+                });
+
+                scrollLogsToBottom();
+            }
+
+            output.textContent += decoder.decode();
+            output.textContent += "\n[log stream closed]\n";
+            scrollLogsToBottom();
+        } catch (e) {
+            output.textContent += `\n[log stream closed: ${e.message}]\n`;
+            scrollLogsToBottom();
+        }
+    }
+
+    loadLogs();
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ use crate::backend::handlers::*;
 pub async fn run() -> Result<()> {
     let app = Router::new()
         .route("/update", post(update_handler))
+        .route("/settings", get(settings))
         .route("/settings/restart", post(restart))
         .route("/settings/poweroff", post(poweroff))
         .route("/settings/reboot", post(reboot_handler))
