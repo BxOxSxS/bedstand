@@ -21,11 +21,11 @@ pub struct Config {
     pub fullscreen: bool,
     pub window_width: f32,
     pub window_height: f32,
-    
+
     pub clock_text_size: u32,
     pub text_size: u32,
     pub line_height: f32,
-    
+
     pub http_server: String,
     pub webhook_url: String,                 //runtime
     pub retry_cooldown: std::time::Duration, //runtime
@@ -35,7 +35,7 @@ pub struct Config {
 
     pub drift_range: i32,
     pub drift_interval: std::time::Duration,
-    pub split_timeout: std::time::Duration,
+    pub split_timeout: std::time::Duration, //runtime
 }
 
 impl Config {

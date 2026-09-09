@@ -1,9 +1,8 @@
-use std::time::Duration;
-
-use chrono::{DateTime, Local};
-use iced::{Element, Font, Length, Subscription, alignment, time, widget::text};
-use iced::widget::stack;
 use crate::ui::theme::{clock_text_size, line_height, text_size};
+use chrono::{DateTime, Local};
+use iced::widget::stack;
+use iced::{Element, Font, Length, Subscription, alignment, time, widget::text};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClockMessage {
@@ -56,15 +55,15 @@ impl Clock {
 
             stack![
                 text(seconds_str)
-                .size(text_size())
-                .line_height(line_height())
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center)
-                .width(Length::Fill)
-                .height(Length::Fill),
+                    .size(text_size())
+                    .line_height(line_height())
+                    .align_x(alignment::Horizontal::Center)
+                    .align_y(alignment::Vertical::Center)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
                 main,
             ]
-                .into()
+            .into()
         } else {
             main.into()
         }

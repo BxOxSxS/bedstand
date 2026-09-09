@@ -1,14 +1,16 @@
 use crate::backend::data::global_data;
+use crate::backend::server::trigger_ask_update;
+use crate::ui::theme::{line_height, text_size};
 use chrono::{DateTime, Local};
-use iced::widget::{column, row, space, text};
+use iced::widget::{column, mouse_area, row, space, text};
 use iced::{Element, Length, Subscription, time};
 use std::time::Duration;
-use crate::ui::theme::{line_height, text_size};
 
 #[derive(Debug, Clone)]
 pub enum TopBarMessage {
     Tick(DateTime<Local>),
     AlarmChanged(Option<DateTime<Local>>),
+    AskUpdate,
     UpdateTimeChanged(DateTime<Local>),
     UpdateTryTimeChanged(Option<DateTime<Local>>),
 }
@@ -68,6 +70,7 @@ impl TopBar {
                     self.alarm_string = new_alarm_string;
                 }
             }
+            TopBarMessage::AskUpdate => trigger_ask_update(),
             TopBarMessage::UpdateTimeChanged(when) => {
                 let new_update_str = Self::time_ago(&when).to_string();
                 if new_update_str != self.update_str {
@@ -88,12 +91,23 @@ impl TopBar {
     pub fn view(&self) -> Element<'_, TopBarMessage> {
         column![
             row![
-                text(&self.date_string).size(text_size()).line_height(line_height()),
+                text(&self.date_string)
+                    .size(text_size())
+                    .line_height(line_height()),
                 space::horizontal(),
-                text(format!("{}{}", self.update_indicator, self.update_str)).size(text_size()).line_height(line_height()),
+                mouse_area(
+                    text(format!("{}{}", self.update_indicator, self.update_str))
+                        .size(text_size())
+                        .line_height(line_height())
+                )
+                .on_press(TopBarMessage::AskUpdate),
             ]
             .width(Length::Fill),
-            row![text(&self.alarm_string).size(text_size()).line_height(line_height()),]
+            row![
+                text(&self.alarm_string)
+                    .size(text_size())
+                    .line_height(line_height()),
+            ]
         ]
         .width(Length::Fill)
         .into()
@@ -117,21 +131,19 @@ impl TopBar {
     fn relative_time(from: &DateTime<Local>, to: &DateTime<Local>) -> String {
         let seconds = (*to - from).num_seconds();
 
-        let mut sign = { if seconds < 0 { "+" } else { "-" } }.to_string();
+        let sign = { if seconds < 0 { "+" } else { "-" } }.to_string();
         let seconds = seconds.abs();
 
         let value = match seconds {
-            0..=59 => {
-                sign = format!("{}<", sign);
-                1
-            }
+            0..=59 => seconds,
             60..=3599 => seconds / 60,
             3600..=86_399 => seconds / 3600,
             _ => return format!("{}>1d", sign),
         };
 
         let suffix = match seconds {
-            0..=3599 => "m",
+            0..=59 => "s",
+            60..=3599 => "m",
             3600..=86_399 => "h",
             _ => "d",
         };

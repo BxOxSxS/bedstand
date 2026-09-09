@@ -1,11 +1,11 @@
 use crate::backend::config::global_config;
-use crate::backend::server::trigger_ask_update;
+use crate::error::*;
 use crate::ui::clock::{Clock, ClockMessage};
 use crate::ui::top_bar::{TopBar, TopBarMessage};
 use iced::{
-    Element, Length, Subscription, Theme, Vector,
-    futures::{self, stream::Stream},
-    time::{self},
+    Element, Length, Subscription, Theme, Vector, event,
+    futures::stream::{self, BoxStream},
+    time,
     widget::{Space, column, container, float, mouse_area, row, stack, text},
 };
 use rand::seq::SliceRandom;
@@ -17,6 +17,7 @@ pub enum ViewMessage {
     TopBar(TopBarMessage),
     DriftTick,
     ScreenPressed,
+    AnyClick,
     SplitTimeout,
 }
 
@@ -27,30 +28,28 @@ pub struct View {
     drift: Drift,
 
     is_split: bool,
+    split_reset_tx: SplitResetSender,
 }
 
 impl View {
     pub fn new() -> Self {
         info!("Creating View");
         tokio::spawn(crate::backend::server::run());
-        trigger_ask_update();
+
+        let mut top_bar = TopBar::new();
+        top_bar.update(TopBarMessage::AskUpdate);
+
+        let (split_reset_tx, _) = tokio::sync::broadcast::channel(1);
 
         Self {
             clock: Clock::new(),
-            top_bar: TopBar::new(),
+            top_bar,
 
             drift: Drift::new(),
 
             is_split: false,
+            split_reset_tx: SplitResetSender(split_reset_tx),
         }
-    }
-
-    fn split_timeout() -> impl Stream<Item = ViewMessage> {
-        futures::stream::once(async {
-            let split_timeout = global_config().read().await.split_timeout;
-            tokio::time::sleep(split_timeout).await;
-            ViewMessage::SplitTimeout
-        })
     }
 
     pub fn update(&mut self, message: ViewMessage) {
@@ -69,15 +68,24 @@ impl View {
                     self.clock.update(ClockMessage::ToggleSeconds(false));
                     self.is_split = false;
                 } else {
-                    trigger_ask_update();
+                    self.top_bar.update(TopBarMessage::AskUpdate);
                     self.clock.update(ClockMessage::ToggleSeconds(true));
                     self.is_split = true;
                 }
+                info!("Split state changed to {}", self.is_split);
+            }
+            ViewMessage::AnyClick => {
+                let _ = self
+                    .split_reset_tx
+                    .0
+                    .send(())
+                    .map_err(|e| Error::new(format!("Failed to send split reset: {e}")));
             }
             ViewMessage::SplitTimeout => {
-                if !self.is_split {
-                    self.clock.update(ClockMessage::ToggleSeconds(true));
-                    self.is_split = true;
+                if self.is_split {
+                    self.clock.update(ClockMessage::ToggleSeconds(false));
+                    self.is_split = false;
+                    info!("Split timeout reached");
                 }
             }
         }
@@ -91,13 +99,20 @@ impl View {
 
         let drift = time::every(drift_interval).map(|_| ViewMessage::DriftTick);
 
-        let split_timeout = if self.is_split {
-            Subscription::run(Self::split_timeout)
-        } else {
-            Subscription::none()
-        };
+        let mouse = event::listen_with(|event, _, _| match event {
+            iced::Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Left)) => {
+                Some(ViewMessage::AnyClick)
+            }
+            iced::Event::Touch(iced::touch::Event::FingerPressed { .. }) => {
+                Some(ViewMessage::AnyClick)
+            }
+            _ => None,
+        });
 
-        Subscription::batch([clock, drift, split_timeout, top_bar])
+        let split_timeout =
+            Subscription::run_with(self.split_reset_tx.clone(), Self::split_timeout);
+
+        Subscription::batch([clock, drift, split_timeout, top_bar, mouse])
     }
 
     pub fn view(&self) -> Element<'_, ViewMessage> {
@@ -127,27 +142,22 @@ impl View {
             let target_center_x = viewport.x + viewport.width / 6.0;
             let target_translation = target_center_x - current_center_x;
 
-            let progress = if self.is_split {
-                1.0
-            } else {
-                0.0
-            };
+            let progress = if self.is_split { 1.0 } else { 0.0 };
             Vector::new(target_translation * progress, 0.0)
         });
 
         let content: Element<'_, ViewMessage> = if self.is_split {
-            let clock_hit_area =
-                mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
-                    .on_press(ViewMessage::ScreenPressed);
+            let clock_hit_area = mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
+                .on_press(ViewMessage::ScreenPressed);
 
             let split_layout = row![
-                    container(clock_hit_area)
-                        .width(Length::FillPortion(1))
-                        .height(Length::Fill),
-                    panel.width(Length::FillPortion(2)).height(Length::Fill),
-                ]
-                .width(Length::Fill)
-                .height(Length::Fill);
+                container(clock_hit_area)
+                    .width(Length::FillPortion(1))
+                    .height(Length::Fill),
+                panel.width(Length::FillPortion(2)).height(Length::Fill),
+            ]
+            .width(Length::Fill)
+            .height(Length::Fill);
 
             stack![split_layout, moving_clock]
                 .width(Length::Fill)
@@ -162,6 +172,50 @@ impl View {
         float(content)
             .translate(move |_, _| self.drift.vector())
             .into()
+    }
+
+    fn split_timeout(reset_tx: &SplitResetSender) -> BoxStream<'static, ViewMessage> {
+        let reset_rx = reset_tx.0.subscribe();
+        Box::pin(stream::unfold(reset_rx, |mut reset_rx| async move {
+            //wait for first click
+            if reset_rx.recv().await.is_err() {
+                let _ = Error::new("Split timeout reset channel closed unexpectedly");
+                return None;
+            }
+            loop {
+                let split_timeout = global_config().read().await.split_timeout;
+                tokio::select! {
+                    _ = tokio::time::sleep(split_timeout) => {
+                        return Some((
+                            ViewMessage::SplitTimeout,
+                            reset_rx,
+                        ));
+                    }
+                    result = reset_rx.recv() => {
+                        match result {
+                            Ok(()) => {
+                                debug!("Split timeout reset");
+                                continue;
+                            }
+
+                            Err(
+                                tokio::sync::broadcast::error::RecvError::Lagged(_)
+                            ) => {
+                                debug!("Split timeout reset");
+                                continue;
+                            }
+
+                            Err(
+                                tokio::sync::broadcast::error::RecvError::Closed
+                            ) => {
+                                let _ = Error::new("Split timeout reset channel closed unexpectedly");
+                                return None;
+                            }
+                        }
+                    }
+                }
+            }
+        }))
     }
 }
 
@@ -218,5 +272,14 @@ impl Drift {
 
     fn vector(&self) -> Vector {
         Vector::new(self.x as f32, self.y as f32)
+    }
+}
+
+#[derive(Clone)]
+struct SplitResetSender(tokio::sync::broadcast::Sender<()>);
+
+impl std::hash::Hash for SplitResetSender {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        "split-reset-timer".hash(state);
     }
 }
