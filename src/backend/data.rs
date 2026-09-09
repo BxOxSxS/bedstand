@@ -45,16 +45,16 @@ impl Data {
 
         let mut calendar = Vec::with_capacity(incoming.calendar.len());
         for event in incoming.calendar {
-            calendar.push(incoming_event_to_calendar(event)?);
+            calendar.push(incoming_event_to_calendar(event).add()?);
         }
 
         let alarm = if incoming.alarm == 0 {
             None
         } else {
-            Some(ts_to_local(incoming.alarm)?)
+            Some(ts_to_local(incoming.alarm).add()?)
         };
 
-        let time = ts_to_local(incoming.time)?;
+        let time = ts_to_local(incoming.time).add()?;
 
         let data = global_data();
         data.alarm.update(alarm);
@@ -89,9 +89,9 @@ fn incoming_event_to_calendar(event: IncomingCalendarEvent) -> Result<CalendarEv
     }
 
     Ok(CalendarEvent {
-        end: ts_to_local(event.end)?,
+        end: ts_to_local(event.end).add()?,
         name: event.name,
-        start: ts_to_local(event.start)?,
+        start: ts_to_local(event.start).add()?,
     })
 }
 
