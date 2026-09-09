@@ -1,23 +1,19 @@
+use crate::backend::config::{Config, config_path, global_config};
+use crate::backend::data::{Data, global_data};
+use crate::error::*;
+use axum::response::Html;
 use axum::{
     body::{Body, Bytes},
-    http::{header, Response, StatusCode},
+    http::{Response, StatusCode, header},
 };
 use linemux::MuxedLines;
 use nix::{
-    sys::reboot::{reboot, RebootMode},
+    sys::reboot::{RebootMode, reboot},
     unistd::execv,
 };
-use std::{
-    env::current_exe,
-    ffi::CString,
-    os::unix::ffi::OsStrExt,
-};
-use axum::response::Html;
+use std::{env::current_exe, ffi::CString, os::unix::ffi::OsStrExt};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::info;
-use crate::backend::config::{global_config, Config, config_path};
-use crate::backend::data::{global_data, Data};
-use crate::error::*;
 
 pub async fn update_handler(body: Bytes) -> HttpResult<()> {
     let json = match std::str::from_utf8(&body) {
@@ -91,26 +87,39 @@ const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness";
 const MAX_BRIGHTNESS: u8 = 24;
 
 pub async fn get_brightness() -> HttpResult<String> {
-    let value_str = std::fs::read_to_string(BRIGHTNESS_PATH)
-        .map_err(|e| Error::new(format!("Failed to read brightness: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    let value_str = std::fs::read_to_string(BRIGHTNESS_PATH).map_err(|e| {
+        Error::new(format!("Failed to read brightness: {e}"))
+            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
+    })?;
     Ok(value_str)
 }
 
 pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
     let value: u8 = std::str::from_utf8(&body)
-        .map_err(|e| Error::new(format!("Failed to parse brightness: {e}")).into_http_error(StatusCode::BAD_REQUEST))?
+        .map_err(|e| {
+            Error::new(format!("Failed to parse brightness: {e}"))
+                .into_http_error(StatusCode::BAD_REQUEST)
+        })?
         .parse()
-        .map_err(|e| Error::new(format!("Failed to parse brightness: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+        .map_err(|e| {
+            Error::new(format!("Failed to parse brightness: {e}"))
+                .into_http_error(StatusCode::BAD_REQUEST)
+        })?;
 
     if value > MAX_BRIGHTNESS {
-        let e = Error::new(format!("Brightness value must be between 0 and {}", MAX_BRIGHTNESS));
+        let e = Error::new(format!(
+            "Brightness value must be between 0 and {}",
+            MAX_BRIGHTNESS
+        ));
         return Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST));
     }
 
     info!("Setting brightness to {value}");
 
-    std::fs::write(BRIGHTNESS_PATH, value.to_string())
-        .map_err(|e| Error::new(format!("Failed to set brightness: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    std::fs::write(BRIGHTNESS_PATH, value.to_string()).map_err(|e| {
+        Error::new(format!("Failed to set brightness: {e}"))
+            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
+    })?;
     Ok(())
 }
 
@@ -121,7 +130,10 @@ pub async fn get_runtime_config() -> HttpResult<String> {
 }
 
 pub async fn set_runtime_config(body: Bytes) -> HttpResult<()> {
-    let new_config: Config = serde_json::from_slice(&body).map_err(|e| Error::new(format!("Failed to parse runtime config: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+    let new_config: Config = serde_json::from_slice(&body).map_err(|e| {
+        Error::new(format!("Failed to parse runtime config: {e}"))
+            .into_http_error(StatusCode::BAD_REQUEST)
+    })?;
 
     info!("Setting runtime config:\n{new_config:#?}");
 
@@ -132,16 +144,23 @@ pub async fn set_runtime_config(body: Bytes) -> HttpResult<()> {
 }
 
 pub async fn get_config() -> HttpResult<String> {
-    let config_str = std::fs::read_to_string(config_path())
-        .map_err(|e| Error::new(format!("Failed to read config file: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    let config_str = std::fs::read_to_string(config_path()).map_err(|e| {
+        Error::new(format!("Failed to read config file: {e}"))
+            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
+    })?;
 
     Ok(config_str)
 }
 
 pub async fn set_config(body: Bytes) -> HttpResult<()> {
-    let new_config: Config = serde_json::from_slice(&body).map_err(|e| Error::new(format!("Failed to parse config: {e}")).into_http_error(StatusCode::BAD_REQUEST))?;
+    let new_config: Config = serde_json::from_slice(&body).map_err(|e| {
+        Error::new(format!("Failed to parse config: {e}")).into_http_error(StatusCode::BAD_REQUEST)
+    })?;
 
-    new_config.save().map_err(|e| Error::new(format!("Failed to save config: {e}")).into_http_error(StatusCode::INTERNAL_SERVER_ERROR))?;
+    new_config.save().map_err(|e| {
+        Error::new(format!("Failed to save config: {e}"))
+            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
+    })?;
 
     info!("Setting config:\n{new_config:#?}");
 

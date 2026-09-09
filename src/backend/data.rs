@@ -37,7 +37,7 @@ struct IncomingCalendarEvent {
     start: i64,
 }
 
-impl Data { 
+impl Data {
     pub fn update(json: &str) -> Result<()> {
         info!("Updating data from JSON");
 

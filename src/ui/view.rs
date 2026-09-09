@@ -1,11 +1,12 @@
 use crate::backend::config::global_config;
 use crate::backend::server::trigger_ask_update;
 use crate::ui::clock::{Clock, ClockMessage};
+use crate::ui::top_bar::{TopBar, TopBarMessage};
 use iced::{
     Animation, Element, Length, Subscription, Theme, Vector, animation,
     futures::{self, stream::Stream},
     time::{self, Instant},
-    widget::{Space, container, float, mouse_area, row, stack, text},
+    widget::{Space, column, container, float, mouse_area, row, stack, text},
     window,
 };
 use rand::seq::SliceRandom;
@@ -14,11 +15,12 @@ use tracing::{debug, info};
 #[derive(Debug, Clone)]
 pub enum ViewMessage {
     Clock(ClockMessage),
+    TopBar(TopBarMessage),
     DriftTick,
     ScreenPressed,
     SplitTimeout,
     #[expect(dead_code)]
-    Animate(Instant),
+    Animate(Instant), //todo fix or remove animation
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +33,8 @@ enum ScreenState {
 
 pub struct View {
     clock: Clock,
+    top_bar: TopBar,
+
     drift: Drift,
 
     screen: ScreenState,
@@ -47,6 +51,8 @@ impl View {
         let config = global_config().blocking_read();
         Self {
             clock: Clock::new(),
+            top_bar: TopBar::new(),
+
             drift: Drift::new(),
 
             screen: ScreenState::Full,
@@ -79,6 +85,9 @@ impl View {
         match message {
             ViewMessage::Clock(message) => {
                 self.clock.update(message);
+            }
+            ViewMessage::TopBar(message) => {
+                self.top_bar.update(message);
             }
             ViewMessage::DriftTick => {
                 self.drift.next();
@@ -149,6 +158,7 @@ impl View {
         };
 
         let clock = self.clock.subscription().map(ViewMessage::Clock);
+        let top_bar = self.top_bar.subscription().map(ViewMessage::TopBar);
 
         let drift = time::every(drift_interval).map(|_| ViewMessage::DriftTick);
 
@@ -172,7 +182,7 @@ impl View {
             Subscription::none()
         };
 
-        Subscription::batch([clock, drift, split_timeout, animation])
+        Subscription::batch([clock, drift, split_timeout, animation, top_bar])
     }
 
     pub fn view(&self) -> Element<'_, ViewMessage> {
@@ -223,15 +233,19 @@ impl View {
             Vector::new(target_translation * progress, 0.0)
         });
 
-        let panel = container(
+        let panel = container(column![
+            self.top_bar.view().map(ViewMessage::TopBar),
             text("PLACEHOLDER") // TODO
                 .size(120)
                 .style(move |theme: &Theme| {
                     let mut color = theme.palette().text;
                     color.a = panel_progress;
                     text::Style { color: Some(color) }
-                }),
-        )
+                })
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center(),
+        ])
         .width(Length::Fill)
         .height(Length::Fill)
         .center(Length::Fill);

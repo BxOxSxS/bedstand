@@ -258,7 +258,7 @@ pub struct HttpError {
     pub error: Error,
 }
 
-impl <T: std::error::Error> From<T> for HttpError {
+impl<T: std::error::Error> From<T> for HttpError {
     fn from(error: T) -> Self {
         let error = Error::from(error);
         Self {

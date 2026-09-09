@@ -1,9 +1,13 @@
 use crate::backend::config::global_config;
 use crate::backend::data::global_data;
-use crate::error::*;
-use axum::{Router, extract::DefaultBodyLimit, routing::{get, post}};
-use tracing::{debug, info};
 use crate::backend::handlers::*;
+use crate::error::*;
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+};
+use tracing::{debug, info};
 
 pub async fn run() -> Result<()> {
     let app = Router::new()
@@ -20,7 +24,6 @@ pub async fn run() -> Result<()> {
         .route("/settings/config", post(set_config))
         .route("/settings/data", get(get_data))
         .route("/settings/logs", get(logs))
-
         .layer(DefaultBodyLimit::max(256 * 1024)); //256KiB
 
     let addr = {
