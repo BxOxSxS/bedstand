@@ -3,6 +3,7 @@ use chrono::{DateTime, Local};
 use iced::widget::{column, row, space, text};
 use iced::{Element, Length, Subscription, time};
 use std::time::Duration;
+use crate::ui::theme::{line_height, text_size};
 
 #[derive(Debug, Clone)]
 pub enum TopBarMessage {
@@ -87,12 +88,12 @@ impl TopBar {
     pub fn view(&self) -> Element<'_, TopBarMessage> {
         column![
             row![
-                text(&self.date_string).size(60),
+                text(&self.date_string).size(text_size()).line_height(line_height()),
                 space::horizontal(),
-                text(format!("{}{}", self.update_indicator, self.update_str)).size(60),
+                text(format!("{}{}", self.update_indicator, self.update_str)).size(text_size()).line_height(line_height()),
             ]
             .width(Length::Fill),
-            row![text(&self.alarm_string).size(60),]
+            row![text(&self.alarm_string).size(text_size()).line_height(line_height()),]
         ]
         .width(Length::Fill)
         .into()

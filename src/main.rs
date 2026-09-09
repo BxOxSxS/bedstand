@@ -44,7 +44,8 @@ fn main() -> Result<(), Error> {
         fullscreen = config.fullscreen;
     }
 
-    application::timed(View::new, View::update, View::subscription, View::view)
+    application(View::new, View::update, View::view)
+        .subscription(View::subscription)
         .theme(ui::theme::theme())
         .style(|_, _| ui::theme::style())
         .font(include_bytes!("../assets/fonts/RobotoMono-Outline.ttf"))

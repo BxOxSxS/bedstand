@@ -33,3 +33,15 @@ pub fn style() -> Style {
         background_color,
     }
 }
+
+pub fn text_size() -> u32 {
+    global_config().blocking_read().text_size
+}
+
+pub fn clock_text_size() -> u32 {
+    global_config().blocking_read().clock_text_size
+}
+
+pub fn line_height() -> f32 {
+    global_config().blocking_read().line_height
+}
