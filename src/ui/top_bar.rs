@@ -169,7 +169,7 @@ impl TopBar {
                 let elapsed = (now - try_time).num_seconds();
 
                 if elapsed <= 30 {
-                    "…".to_string()
+                    "⋯".to_string()
                 } else {
                     "!".to_string()
                 }
