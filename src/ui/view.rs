@@ -1,12 +1,13 @@
 use crate::backend::config::global_config;
 use crate::error::*;
+use crate::ui::calendar::{Calendar, CalendarMessage};
 use crate::ui::clock::{Clock, ClockMessage};
 use crate::ui::top_bar::{TopBar, TopBarMessage};
 use iced::{
-    Element, Length, Subscription, Theme, Vector, event,
+    Element, Length, Subscription, Vector, event,
     futures::stream::{self, BoxStream},
     time,
-    widget::{Space, column, container, float, mouse_area, row, stack, text},
+    widget::{Space, column, container, float, mouse_area, row, stack},
 };
 use rand::seq::SliceRandom;
 use tracing::{debug, info};
@@ -15,6 +16,7 @@ use tracing::{debug, info};
 pub enum ViewMessage {
     Clock(ClockMessage),
     TopBar(TopBarMessage),
+    Calendar(CalendarMessage),
     DriftTick,
     ScreenPressed,
     AnyClick,
@@ -24,6 +26,7 @@ pub enum ViewMessage {
 pub struct View {
     clock: Clock,
     top_bar: TopBar,
+    calendar: Calendar,
 
     drift: Drift,
 
@@ -44,6 +47,7 @@ impl View {
         Self {
             clock: Clock::new(),
             top_bar,
+            calendar: Calendar::new(),
 
             drift: Drift::new(),
 
@@ -59,6 +63,9 @@ impl View {
             }
             ViewMessage::TopBar(message) => {
                 self.top_bar.update(message);
+            }
+            ViewMessage::Calendar(message) => {
+                self.calendar.update(message);
             }
             ViewMessage::DriftTick => {
                 self.drift.next();
@@ -96,6 +103,7 @@ impl View {
 
         let clock = self.clock.subscription().map(ViewMessage::Clock);
         let top_bar = self.top_bar.subscription().map(ViewMessage::TopBar);
+        let calendar = self.calendar.subscription().map(ViewMessage::Calendar);
 
         let drift = time::every(drift_interval).map(|_| ViewMessage::DriftTick);
 
@@ -112,7 +120,7 @@ impl View {
         let split_timeout =
             Subscription::run_with(self.split_reset_tx.clone(), Self::split_timeout);
 
-        Subscription::batch([clock, drift, split_timeout, top_bar, mouse])
+        Subscription::batch([clock, drift, split_timeout, top_bar, mouse, calendar])
     }
 
     pub fn view(&self) -> Element<'_, ViewMessage> {
@@ -123,15 +131,7 @@ impl View {
 
         let panel = container(column![
             self.top_bar.view().map(ViewMessage::TopBar),
-            text("PLACEHOLDER") // TODO
-                .size(120)
-                .style(move |theme: &Theme| {
-                    let color = theme.palette().text;
-                    text::Style { color: Some(color) }
-                })
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center(),
+            self.calendar.view().map(ViewMessage::Calendar),
         ])
         .width(Length::Fill)
         .height(Length::Fill)

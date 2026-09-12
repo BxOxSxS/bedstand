@@ -1,3 +1,4 @@
+mod calendar;
 pub mod clock;
 pub mod theme;
 mod top_bar;

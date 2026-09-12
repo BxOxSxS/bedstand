@@ -3,7 +3,7 @@ mod error;
 mod ui;
 
 use crate::ui::view::View;
-use iced::{Error, Font, Size, application, window, font::Weight};
+use iced::{Error, Font, Size, application, font::Weight, window};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub const LOG_FILE: &str = "clock-iced.log";
