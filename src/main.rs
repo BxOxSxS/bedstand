@@ -3,7 +3,7 @@ mod error;
 mod ui;
 
 use crate::ui::view::View;
-use iced::{Error, Font, Size, application, window};
+use iced::{Error, Font, Size, application, window, font::Weight};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 pub const LOG_FILE: &str = "clock-iced.log";
@@ -44,13 +44,16 @@ fn main() -> Result<(), Error> {
         fullscreen = config.fullscreen;
     }
 
+    let mut font = Font::with_name("Roboto Condensed");
+    font.weight = Weight::Thin;
+
     application(View::new, View::update, View::view)
         .subscription(View::subscription)
         .theme(ui::theme::theme())
         .style(|_, _| ui::theme::style())
         .font(include_bytes!("../assets/fonts/RobotoMono-Outline.ttf"))
-        .font(include_bytes!("../assets/fonts/RobotoMono-Thin.ttf"))
-        .default_font(Font::with_name("Roboto Mono Thin"))
+        .font(include_bytes!("../assets/fonts/RobotoCondensed-Thin.ttf"))
+        .default_font(font)
         .window(window::Settings {
             size,
             resizable: false,

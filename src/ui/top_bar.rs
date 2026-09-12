@@ -2,7 +2,7 @@ use crate::backend::data::global_data;
 use crate::backend::server::trigger_ask_update;
 use crate::ui::theme::{line_height, text_size};
 use chrono::{DateTime, Local};
-use iced::widget::{column, mouse_area, row, space, text};
+use iced::widget::{mouse_area, row, space, text};
 use iced::{Element, Length, Subscription, time};
 use std::time::Duration;
 
@@ -15,9 +15,8 @@ pub enum TopBarMessage {
     UpdateTryTimeChanged(Option<DateTime<Local>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TopBar {
-    date_string: String,
     alarm_string: String,
     update_str: String,
     update_indicator: String,
@@ -26,7 +25,6 @@ pub struct TopBar {
 impl TopBar {
     pub fn new() -> Self {
         Self {
-            date_string: String::new(),
             alarm_string: String::new(),
             update_str: String::new(),
             update_indicator: String::new(),
@@ -36,11 +34,6 @@ impl TopBar {
     pub fn update(&mut self, message: TopBarMessage) {
         match message {
             TopBarMessage::Tick(time) => {
-                let new_date_string = time.format("%d.%m.%Y").to_string();
-                if new_date_string != self.date_string {
-                    self.date_string = new_date_string;
-                }
-
                 let data_time = global_data().time.get();
                 let try_time = global_data().last_try_time.get();
 
@@ -54,7 +47,7 @@ impl TopBar {
 
                 let alarm_time = global_data().alarm.get();
                 let new_alarm_string = match *alarm_time {
-                    Some(when) => format!("{}({})", when.format("%H:%M"), Self::time_ago(&when)),
+                    Some(when) => format!("{} ({})", when.format("%H:%M"), Self::time_ago(&when)),
                     None => String::new(),
                 };
                 if new_alarm_string != self.alarm_string {
@@ -63,7 +56,7 @@ impl TopBar {
             }
             TopBarMessage::AlarmChanged(when) => {
                 let new_alarm_string = match when {
-                    Some(when) => format!("{}({})", when.format("%H:%M"), Self::time_ago(&when)),
+                    Some(when) => format!("{} ({})", when.format("%H:%M"), Self::time_ago(&when)),
                     None => String::new(),
                 };
                 if new_alarm_string != self.alarm_string {
@@ -89,25 +82,17 @@ impl TopBar {
     }
 
     pub fn view(&self) -> Element<'_, TopBarMessage> {
-        column![
-            row![
-                text(&self.date_string)
+        row![
+            text(&self.alarm_string)
+                .size(text_size())
+                .line_height(line_height()),
+            space::horizontal(),
+            mouse_area(
+                text(format!("{}{}", self.update_indicator, self.update_str))
                     .size(text_size())
-                    .line_height(line_height()),
-                space::horizontal(),
-                mouse_area(
-                    text(format!("{}{}", self.update_indicator, self.update_str))
-                        .size(text_size())
-                        .line_height(line_height())
-                )
-                .on_press(TopBarMessage::AskUpdate),
-            ]
-            .width(Length::Fill),
-            row![
-                text(&self.alarm_string)
-                    .size(text_size())
-                    .line_height(line_height()),
-            ]
+                    .line_height(line_height())
+            )
+            .on_press(TopBarMessage::AskUpdate),
         ]
         .width(Length::Fill)
         .into()
