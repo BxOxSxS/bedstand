@@ -2,12 +2,14 @@ use crate::backend::config::global_config;
 use crate::error::*;
 use crate::ui::calendar::{Calendar, CalendarMessage};
 use crate::ui::clock::{Clock, ClockMessage};
+use crate::ui::tap_scroll::tap_scroll;
+use crate::ui::theme::style;
 use crate::ui::top_bar::{TopBar, TopBarMessage};
 use iced::{
     Element, Length, Subscription, Vector, event,
     futures::stream::{self, BoxStream},
     time,
-    widget::{Space, column, container, float, mouse_area, row, stack},
+    widget::{Space, column, container, float, mouse_area, row, scrollable, stack},
 };
 use rand::seq::SliceRandom;
 use tracing::{debug, info};
@@ -18,9 +20,16 @@ pub enum ViewMessage {
     TopBar(TopBarMessage),
     Calendar(CalendarMessage),
     DriftTick,
-    ScreenPressed,
+    ClockPressed,
     AnyClick,
     SplitTimeout,
+    CalendarPressed,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ViewState {
+    Clock,
+    Split,
+    Calendar,
 }
 
 pub struct View {
@@ -30,8 +39,9 @@ pub struct View {
 
     drift: Drift,
 
-    is_split: bool,
     split_reset_tx: SplitResetSender,
+
+    state: ViewState,
 }
 
 impl View {
@@ -51,8 +61,9 @@ impl View {
 
             drift: Drift::new(),
 
-            is_split: false,
             split_reset_tx: SplitResetSender(split_reset_tx),
+
+            state: ViewState::Clock,
         }
     }
 
@@ -70,16 +81,19 @@ impl View {
             ViewMessage::DriftTick => {
                 self.drift.next();
             }
-            ViewMessage::ScreenPressed => {
-                if self.is_split {
-                    self.clock.update(ClockMessage::ToggleSeconds(false));
-                    self.is_split = false;
-                } else {
-                    self.top_bar.update(TopBarMessage::AskUpdate);
-                    self.clock.update(ClockMessage::ToggleSeconds(true));
-                    self.is_split = true;
+            ViewMessage::ClockPressed => {
+                match self.state {
+                    ViewState::Clock => {
+                        self.top_bar.update(TopBarMessage::AskUpdate);
+                        self.clock.update(ClockMessage::ToggleSeconds(true));
+                        self.state = ViewState::Split;
+                    }
+                    _ => {
+                        self.clock.update(ClockMessage::ToggleSeconds(false));
+                        self.state = ViewState::Clock
+                    }
                 }
-                info!("Split state changed to {}", self.is_split);
+                info!("ViewState changed to {:?}", self.state);
             }
             ViewMessage::AnyClick => {
                 let _ = self
@@ -89,11 +103,22 @@ impl View {
                     .map_err(|e| Error::new(format!("Failed to send split reset: {e}")));
             }
             ViewMessage::SplitTimeout => {
-                if self.is_split {
+                if self.state != ViewState::Clock {
                     self.clock.update(ClockMessage::ToggleSeconds(false));
-                    self.is_split = false;
+                    self.state = ViewState::Clock;
                     info!("Split timeout reached");
                 }
+            }
+            ViewMessage::CalendarPressed => {
+                match self.state {
+                    ViewState::Calendar => {
+                        self.state = ViewState::Split;
+                    }
+                    _ => {
+                        self.state = ViewState::Calendar;
+                    }
+                }
+                info!("ViewState changed to {:?}", self.state);
             }
         }
     }
@@ -131,7 +156,19 @@ impl View {
 
         let panel = container(column![
             self.top_bar.view().map(ViewMessage::TopBar),
-            self.calendar.view().map(ViewMessage::Calendar),
+            tap_scroll(self.calendar.view().map(ViewMessage::Calendar))
+                .style(|theme, status| {
+                    let mut s = scrollable::default(theme, status);
+                    s.vertical_rail.scroller.background = style().text_color.into();
+                    s.horizontal_rail.scroller.background = style().text_color.into();
+                    s
+                })
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::new().width(2).scroller_width(2),
+                ))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .on_press(ViewMessage::CalendarPressed),
         ])
         .width(Length::Fill)
         .height(Length::Fill)
@@ -142,13 +179,17 @@ impl View {
             let target_center_x = viewport.x + viewport.width / 6.0;
             let target_translation = target_center_x - current_center_x;
 
-            let progress = if self.is_split { 1.0 } else { 0.0 };
+            let progress = if self.state == ViewState::Split {
+                1.0
+            } else {
+                0.0
+            };
             Vector::new(target_translation * progress, 0.0)
         });
 
-        let content: Element<'_, ViewMessage> = if self.is_split {
+        let content: Element<'_, ViewMessage> = if self.state == ViewState::Split {
             let clock_hit_area = mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
-                .on_press(ViewMessage::ScreenPressed);
+                .on_press(ViewMessage::ClockPressed);
 
             let split_layout = row![
                 container(clock_hit_area)
@@ -163,10 +204,12 @@ impl View {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into()
-        } else {
+        } else if self.state == ViewState::Clock {
             mouse_area(moving_clock)
-                .on_press(ViewMessage::ScreenPressed)
+                .on_press(ViewMessage::ClockPressed)
                 .into()
+        } else {
+            panel.into()
         };
 
         float(content)

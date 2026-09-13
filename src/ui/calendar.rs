@@ -1,7 +1,7 @@
 use crate::backend::data::{CalendarEvent, global_data};
 use crate::ui::theme::{line_height, style, text_size};
 use chrono::{DateTime, Datelike, Duration, Local, TimeZone, Timelike};
-use iced::widget::{column, rule, scrollable, text};
+use iced::widget::{column, rule, text};
 use iced::{Element, Length, Subscription};
 
 #[derive(Clone, Debug)]
@@ -116,23 +116,10 @@ impl Calendar {
         ]
         .width(Length::Fill);
 
-        scrollable(
-            column![today, tomorrow]
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .style(|theme, status| {
-            let mut s = scrollable::default(theme, status);
-            s.vertical_rail.scroller.background = style().text_color.into();
-            s.horizontal_rail.scroller.background = style().text_color.into();
-            s
-        })
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(2).scroller_width(2),
-        ))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        column![today, tomorrow]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn view_event<'a>(&self, event: &'a CalendarEvent) -> Element<'a, CalendarMessage> {
