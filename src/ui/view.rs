@@ -4,8 +4,9 @@ use crate::error::*;
 use crate::ui::calendar::{Calendar, CalendarMessage};
 use crate::ui::clock::{Clock, ClockMessage};
 use crate::ui::tap_scroll::tap_scroll;
-use crate::ui::theme::style;
+use crate::ui::theme::{line_height, style, text_size};
 use crate::ui::top_bar::{TopBar, TopBarMessage};
+use iced::widget::text;
 use iced::{
     Element, Length, Subscription, Vector, event,
     futures::stream::{self, BoxStream},
@@ -26,12 +27,15 @@ pub enum ViewMessage {
     SplitTimeout,
     CalendarPressed,
     Proximity,
+    OffPressed,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ViewState {
     Clock,
     Split(bool), //bool indicates direction of preview state, true = clock, false = calendar
     Calendar,
+
+    Off,
 }
 
 pub struct View {
@@ -139,9 +143,14 @@ impl View {
                     ViewState::Calendar => {
                         self.state = ViewState::Split(false);
                     }
+                    ViewState::Off => {}
                 }
                 info!("ViewState changed to {:?}", self.state);
                 self.update(ViewMessage::AnyClick);
+            }
+            ViewMessage::OffPressed => {
+                self.state = ViewState::Off;
+                info!("ViewState changed to {:?}", self.state);
             }
         }
     }
@@ -233,16 +242,25 @@ impl View {
             .width(Length::Fill)
             .height(Length::Fill);
 
-            stack![split_layout, moving_clock]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into()
+            stack![
+                split_layout,
+                moving_clock,
+                mouse_area(text("X").size(text_size()).line_height(line_height()))
+                    .on_press(ViewMessage::OffPressed),
+            ]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
         } else if self.state == ViewState::Clock {
             mouse_area(moving_clock)
                 .on_press(ViewMessage::ClockPressed)
                 .into()
-        } else {
+        } else if self.state == ViewState::Calendar {
             panel.into()
+        } else {
+            mouse_area(Space::new().height(Length::Fill).width(Length::Fill))
+                .on_press(ViewMessage::ClockPressed)
+                .into()
         };
 
         float(content)
