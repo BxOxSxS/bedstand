@@ -36,6 +36,10 @@ pub struct Config {
     pub drift_range: i32,
     pub drift_interval: std::time::Duration,
     pub split_timeout: std::time::Duration, //runtime
+
+    pub proximity_device: String,
+    pub proximity_threshold: i32,                     //runtime
+    pub proximity_poll_interval: std::time::Duration, //runtime
 }
 
 impl Config {
