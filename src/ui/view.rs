@@ -32,7 +32,7 @@ pub enum ViewMessage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ViewState {
     Clock,
-    Split(bool), //bool indicates direction of preview state, true = clock, false = calendar
+    Split,
     Calendar,
 
     Off,
@@ -92,7 +92,7 @@ impl View {
                     ViewState::Clock => {
                         self.top_bar.update(TopBarMessage::AskUpdate);
                         self.clock.update(ClockMessage::ToggleSeconds(true));
-                        self.state = ViewState::Split(true);
+                        self.state = ViewState::Split;
                     }
                     _ => {
                         self.clock.update(ClockMessage::ToggleSeconds(false));
@@ -118,7 +118,7 @@ impl View {
             ViewMessage::CalendarPressed => {
                 match self.state {
                     ViewState::Calendar => {
-                        self.state = ViewState::Split(false);
+                        self.state = ViewState::Split;
                     }
                     _ => {
                         self.state = ViewState::Calendar;
@@ -131,17 +131,14 @@ impl View {
                     ViewState::Clock => {
                         self.top_bar.update(TopBarMessage::AskUpdate);
                         self.clock.update(ClockMessage::ToggleSeconds(true));
-                        self.state = ViewState::Split(true);
+                        self.state = ViewState::Split;
                     }
-                    ViewState::Split(true) => {
+                    ViewState::Split => {
                         self.state = ViewState::Calendar;
                     }
-                    ViewState::Split(false) => {
+                    ViewState::Calendar => {
                         self.clock.update(ClockMessage::ToggleSeconds(false));
                         self.state = ViewState::Clock;
-                    }
-                    ViewState::Calendar => {
-                        self.state = ViewState::Split(false);
                     }
                     ViewState::Off => {}
                 }
@@ -221,7 +218,7 @@ impl View {
             let target_center_x = viewport.x + viewport.width / 6.0;
             let target_translation = target_center_x - current_center_x;
 
-            let progress = if let ViewState::Split(_) = self.state {
+            let progress = if self.state == ViewState::Split {
                 1.0
             } else {
                 0.0
@@ -229,7 +226,7 @@ impl View {
             Vector::new(target_translation * progress, 0.0)
         });
 
-        let content: Element<'_, ViewMessage> = if let ViewState::Split(_) = self.state {
+        let content: Element<'_, ViewMessage> = if self.state == ViewState::Split {
             let clock_hit_area = mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
                 .on_press(ViewMessage::ClockPressed);
 
