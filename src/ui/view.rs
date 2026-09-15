@@ -109,7 +109,7 @@ impl View {
                     .map_err(|e| Error::new(format!("Failed to send split reset: {e}")));
             }
             ViewMessage::SplitTimeout => {
-                if self.state != ViewState::Clock {
+                if self.state != ViewState::Clock && self.state != ViewState::Off {
                     self.clock.update(ClockMessage::ToggleSeconds(false));
                     self.state = ViewState::Clock;
                     info!("Split timeout reached");
