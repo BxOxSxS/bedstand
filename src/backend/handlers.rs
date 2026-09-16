@@ -17,7 +17,7 @@ use nix::{
 };
 use std::{env::current_exe, ffi::CString, os::unix::ffi::OsStrExt};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::info;
+use tracing::{info, warn};
 
 pub async fn update_handler(body: Bytes) -> HttpResult<()> {
     let json = match std::str::from_utf8(&body) {
@@ -227,6 +227,7 @@ pub async fn login_post(
     let valid = state.auth_tokens.iter().any(|token| token == &form.token);
 
     if !valid {
+        warn!("Invalid login attempt with token: {}", form.token);
         return (StatusCode::UNAUTHORIZED, "Invalid token").into_response();
     }
 
