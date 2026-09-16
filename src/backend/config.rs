@@ -30,6 +30,7 @@ pub struct Config {
     pub pem_fullchain_path: String,
     pub pem_privkey_path: String,
     pub pem_notify: bool,
+    pub auth_tokens: Vec<String>,
 
     pub webhook_url: String,                 //runtime
     pub retry_cooldown: std::time::Duration, //runtime

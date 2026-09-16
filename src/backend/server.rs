@@ -5,16 +5,47 @@ use crate::error::*;
 use axum::{
     Router,
     extract::DefaultBodyLimit,
+    extract::{Request, State},
+    http::{Method, StatusCode, header},
+    middleware,
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
+use axum_extra::extract::CookieJar;
 use axum_server::tls_rustls::RustlsConfig;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::net::SocketAddr;
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
+
+#[derive(Clone)]
+pub struct ServerState {
+    pub https: bool,
+    pub auth_tokens: Vec<String>,
+}
 
 pub async fn run() -> Result<()> {
-    let app = Router::new()
+    let (fullchain_path, privkey_path, addr, pem_notify, auth_tokens) = {
+        let config = global_config().read().await;
+
+        (
+            config.pem_fullchain_path.clone(),
+            config.pem_privkey_path.clone(),
+            config.http_server.clone(),
+            config.pem_notify,
+            config.auth_tokens.clone(),
+        )
+    };
+
+    let https = !fullchain_path.is_empty() && !privkey_path.is_empty();
+
+    let state = ServerState { https, auth_tokens };
+
+    let public_routes = Router::new()
+        .route("/", get(login))
+        .route("/", post(login_post));
+
+    let protected_routes = Router::new()
         .route("/update", post(update_handler))
         .route("/settings", get(settings))
         .route("/settings/restart", post(restart))
@@ -28,17 +59,15 @@ pub async fn run() -> Result<()> {
         .route("/settings/config", post(set_config))
         .route("/settings/data", get(get_data))
         .route("/settings/logs", get(logs))
-        .layer(DefaultBodyLimit::max(256 * 1024)); //256KiB
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
-    let (fullchain_path, privkey_path, addr, pem_notify) = {
-        let config = global_config().read().await;
-        (
-            config.pem_fullchain_path.clone(),
-            config.pem_privkey_path.clone(),
-            config.http_server.clone(),
-            config.pem_notify,
-        )
-    };
+    let app = public_routes
+        .merge(protected_routes)
+        .layer(DefaultBodyLimit::max(256 * 1024)) //256 KB
+        .with_state(state.clone());
 
     match (fullchain_path.is_empty(), privkey_path.is_empty()) {
         (true, true) => {
@@ -199,4 +228,49 @@ fn spawn_tls_watcher(
     });
 
     Ok(())
+}
+
+async fn auth_middleware(
+    State(state): State<ServerState>,
+    request: Request,
+    next: middleware::Next,
+) -> Response {
+    if is_authorized(&request, &state.auth_tokens) {
+        return next.run(request).await;
+    }
+
+    warn!(
+        "Unauthorized request: {} {}",
+        request.method(),
+        request.uri().path()
+    );
+
+    if request.method() == Method::GET && request.uri().path() == "/settings" {
+        return Redirect::to("/").into_response();
+    }
+
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+pub fn is_authorized(request: &Request, auth_tokens: &[String]) -> bool {
+    if auth_tokens.is_empty() {
+        return true;
+    }
+
+    if request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|token| auth_tokens.iter().any(|valid| valid == token))
+    {
+        return true;
+    }
+
+    let cookies = CookieJar::from_headers(request.headers());
+
+    cookies.iter().any(|cookie| {
+        matches!(cookie.name(), "auth" | "__Host-auth")
+            && auth_tokens.iter().any(|valid| valid == cookie.value())
+    })
 }

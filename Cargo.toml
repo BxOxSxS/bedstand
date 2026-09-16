@@ -17,6 +17,7 @@ regex = "1"
 
 axum = "0.8"
 axum-server = { version = "0.8", features = ["tls-rustls"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
 reqwest = { version = "0.13" }
 nix = { version = "0", features = ["process", "reboot"] }
 linemux = "0.3.0"

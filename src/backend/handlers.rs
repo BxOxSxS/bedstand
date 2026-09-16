@@ -1,11 +1,15 @@
 use crate::backend::config::{Config, config_path, global_config};
 use crate::backend::data::{Data, global_data};
+use crate::backend::server::ServerState;
 use crate::error::*;
-use axum::response::Html;
 use axum::{
+    Form,
     body::{Body, Bytes},
-    http::{Response, StatusCode, header},
+    extract::{Request, State},
+    http::{HeaderMap, HeaderValue, Response, StatusCode, header},
+    response::{Html, IntoResponse, Redirect},
 };
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use linemux::MuxedLines;
 use nix::{
     sys::reboot::{RebootMode, reboot},
@@ -201,4 +205,49 @@ pub async fn logs() -> Result<Response<Body>> {
 
 pub async fn settings() -> Html<&'static str> {
     Html::from(include_str!("../../assets/settings.html"))
+}
+
+pub async fn login(State(state): State<ServerState>, request: Request) -> Response<Body> {
+    if crate::backend::server::is_authorized(&request, &state.auth_tokens) {
+        return Redirect::temporary("/settings").into_response();
+    }
+
+    Html::from(include_str!("../../assets/login.html")).into_response()
+}
+
+#[derive(serde::Deserialize)]
+pub struct LoginForm {
+    token: String,
+}
+
+pub async fn login_post(
+    State(state): State<ServerState>,
+    Form(form): Form<LoginForm>,
+) -> Response<Body> {
+    let valid = state.auth_tokens.iter().any(|token| token == &form.token);
+
+    if !valid {
+        return (StatusCode::UNAUTHORIZED, "Invalid token").into_response();
+    }
+
+    let cookie_name = if state.https { "__Host-auth" } else { "auth" };
+
+    let cookie = Cookie::build((cookie_name, form.token))
+        .path("/")
+        .secure(state.https)
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .build();
+
+    let mut set_cookie = cookie.to_string();
+    set_cookie.push_str("; Max-Age=31536000");
+
+    let mut headers = HeaderMap::new();
+
+    headers.insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&set_cookie).expect("valid Set-Cookie header"),
+    );
+
+    (headers, Redirect::to("/settings")).into_response()
 }

@@ -1,0 +1,116 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+        }
+
+        .login {
+            width: min(100%, 500px);
+            margin: 80px auto 0;
+        }
+
+        h1 {
+            margin: 0 0 20px;
+            font-size: 22px;
+            font-weight: normal;
+        }
+
+        input,
+        button {
+            box-sizing: border-box;
+            width: 100%;
+            margin-top: 8px;
+            padding: 8px;
+            background: #000;
+            color: #fff;
+            border: 1px solid #444;
+            font: inherit;
+        }
+
+        button {
+            background: #111;
+            border-color: #555;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #222;
+        }
+
+        .status {
+            margin-top: 12px;
+            min-height: 1em;
+        }
+    </style>
+</head>
+
+<body>
+<div class="login">
+    <h1>Login</h1>
+
+    <form id="loginForm">
+        <input
+                id="token"
+                name="token"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Token"
+                autofocus
+                required
+        >
+
+        <button type="submit">Login</button>
+    </form>
+
+    <div id="status" class="status"></div>
+</div>
+
+<script>
+    const form = document.getElementById("loginForm");
+    const token = document.getElementById("token");
+    const status = document.getElementById("status");
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        status.textContent = "";
+
+        try {
+            const response = await fetch("/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({
+                    token: token.value
+                })
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(
+                    text || `${response.status} ${response.statusText}`
+                );
+            }
+
+            window.location.href = "/settings";
+        } catch (e) {
+            status.textContent = e.message;
+            token.focus();
+            token.select();
+        }
+    });
+</script>
+
+</body>
+</html>
