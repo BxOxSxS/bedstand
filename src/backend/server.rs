@@ -7,7 +7,10 @@ use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
 };
+use axum_server::tls_rustls::RustlsConfig;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::net::SocketAddr;
+use std::time::Duration;
 use tracing::{debug, info};
 
 pub async fn run() -> Result<()> {
@@ -27,12 +30,13 @@ pub async fn run() -> Result<()> {
         .route("/settings/logs", get(logs))
         .layer(DefaultBodyLimit::max(256 * 1024)); //256KiB
 
-    let (fullchain_path, privkey_path, addr) = {
+    let (fullchain_path, privkey_path, addr, pem_notify) = {
         let config = global_config().read().await;
         (
             config.pem_fullchain_path.clone(),
             config.pem_privkey_path.clone(),
             config.http_server.clone(),
+            config.pem_notify,
         )
     };
 
@@ -47,12 +51,16 @@ pub async fn run() -> Result<()> {
 
         (false, false) => {
             //tls enabled, HTTPS
-            let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
-                &fullchain_path,
-                &privkey_path,
-            )
-            .await?;
+            let tls_config = RustlsConfig::from_pem_file(&fullchain_path, &privkey_path).await?;
             let addr: SocketAddr = addr.parse()?;
+
+            if pem_notify {
+                spawn_tls_watcher(
+                    tls_config.clone(),
+                    fullchain_path.clone(),
+                    privkey_path.clone(),
+                )?;
+            }
 
             info!("HTTPS server listening on https://{addr}");
             axum_server::tls_rustls::bind_rustls(addr, tls_config)
@@ -97,4 +105,98 @@ pub async fn ask_update() -> Result<()> {
 
 pub fn trigger_ask_update() {
     tokio::spawn(ask_update());
+}
+
+fn spawn_tls_watcher(
+    tls_config: RustlsConfig,
+    fullchain_path: String,
+    privkey_path: String,
+) -> Result<()> {
+    let fullchain_path = std::path::absolute(fullchain_path)?;
+    let privkey_path = std::path::absolute(privkey_path)?;
+
+    let watch_dir = fullchain_path
+        .parent()
+        .ok_or_else(|| Error::new("Invalid certificate path"))?
+        .to_path_buf();
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(16);
+
+    let mut watcher = RecommendedWatcher::new(
+        move |result| {
+            let _ = tx.blocking_send(result);
+        },
+        Config::default(),
+    )?;
+
+    watcher.watch(&watch_dir, RecursiveMode::NonRecursive)?;
+
+    tokio::spawn(async move {
+        //keep the watcher alive in this async task
+        let _watcher = watcher;
+
+        let debounce_duration = Duration::from_secs(1);
+        let mut reload_deadline = None;
+
+        let timer = tokio::time::sleep(Duration::from_secs(1));
+        tokio::pin!(timer);
+
+        loop {
+            tokio::select! {
+                result = rx.recv() => {
+                    let Some(result) = result else {
+                        break;
+                    };
+
+                    let event = match result {
+                        Ok(event) => event,
+                        Err(err) => {
+                            let _ = Error::new(format!("Failed to watch TLS certificate files: {err}"));
+                            continue;
+                        }
+                    };
+
+                    let relevant = event.paths.iter().any(|path| {
+                        path == &fullchain_path || path == &privkey_path
+                    });
+
+                    if !relevant {
+                        continue;
+                    }
+
+                    if !matches!(
+                        event.kind,
+                        EventKind::Create(_)
+                            | EventKind::Modify(_)
+                            | EventKind::Remove(_)
+                    ) {
+                        continue;
+                    }
+
+                    debug!("TLS certificate files changed: {:?}", event.paths);
+
+                    let deadline = tokio::time::Instant::now() + debounce_duration;
+
+                    reload_deadline = Some(deadline);
+                    timer.as_mut().reset(deadline);
+                }
+
+                _ = &mut timer, if reload_deadline.is_some() => {
+                    reload_deadline = None;
+
+                    match tls_config
+                        .reload_from_pem_file(&fullchain_path, &privkey_path)
+                        .await
+                    {
+                        Ok(()) => info!("TLS configuration reloaded"),
+                        Err(err) => {
+                            let _ = Error::new(format!("Failed to reload TLS configuration: {err}"));
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(())
 }

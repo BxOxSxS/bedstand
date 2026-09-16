@@ -21,3 +21,4 @@ reqwest = { version = "0.13" }
 nix = { version = "0", features = ["process", "reboot"] }
 linemux = "0.3.0"
 tokio-stream = "0"
+notify = "8"

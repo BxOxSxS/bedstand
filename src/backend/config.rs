@@ -27,6 +27,10 @@ pub struct Config {
     pub line_height: f32,
 
     pub http_server: String,
+    pub pem_fullchain_path: String,
+    pub pem_privkey_path: String,
+    pub pem_notify: bool,
+
     pub webhook_url: String,                 //runtime
     pub retry_cooldown: std::time::Duration, //runtime
 
@@ -40,9 +44,6 @@ pub struct Config {
     pub proximity_device: String,
     pub proximity_threshold: i32,                     //runtime
     pub proximity_poll_interval: std::time::Duration, //runtime
-
-    pub pem_fullchain_path: String,
-    pub pem_privkey_path: String,
 }
 
 impl Config {
