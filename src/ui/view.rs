@@ -28,6 +28,7 @@ pub enum ViewMessage {
     CalendarPressed,
     Proximity,
     OffPressed,
+    ScreenOn,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ViewState {
@@ -159,6 +160,19 @@ impl View {
                 self.state = ViewState::Off;
                 info!("ViewState changed to {:?}", self.state);
             }
+            ViewMessage::ScreenOn => {
+                let screen_on_cmd = global_config().blocking_read().screen_on_cmd.clone();
+                if !screen_on_cmd.is_empty() {
+                    let _ = std::process::Command::new("sh")
+                        .args(["-c", &screen_on_cmd])
+                        .spawn()
+                        .map_err(|e| {
+                            Error::new(format!("Failed to execute screen on command: {e}"))
+                        });
+                }
+
+                self.update(ViewMessage::ClockPressed);
+            }
         }
     }
 
@@ -266,7 +280,7 @@ impl View {
             panel.into()
         } else {
             mouse_area(Space::new().height(Length::Fill).width(Length::Fill))
-                .on_press(ViewMessage::ClockPressed)
+                .on_press(ViewMessage::ScreenOn)
                 .into()
         };
 

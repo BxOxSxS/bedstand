@@ -47,6 +47,7 @@ pub struct Config {
     pub proximity_poll_interval: std::time::Duration, //runtime
 
     pub screen_off_cmd: String, //runtime
+    pub screen_on_cmd: String,  //runtime
 }
 
 impl Config {
