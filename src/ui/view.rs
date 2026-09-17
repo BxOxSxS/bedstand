@@ -146,6 +146,16 @@ impl View {
                 self.update(ViewMessage::AnyClick);
             }
             ViewMessage::OffPressed => {
+                let screen_off_cmd = global_config().blocking_read().screen_off_cmd.clone();
+                if !screen_off_cmd.is_empty() {
+                    let _ = std::process::Command::new("sh")
+                        .args(["-c", &screen_off_cmd])
+                        .spawn()
+                        .map_err(|e| {
+                            Error::new(format!("Failed to execute screen off command: {e}"))
+                        });
+                }
+
                 self.state = ViewState::Off;
                 info!("ViewState changed to {:?}", self.state);
             }
