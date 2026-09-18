@@ -87,19 +87,16 @@ pub async fn reboot_handler() -> HttpResult<()> {
     Ok(())
 }
 
-const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness";
-const MAX_BRIGHTNESS: u8 = 24;
-
 pub async fn get_brightness() -> HttpResult<String> {
-    let value_str = std::fs::read_to_string(BRIGHTNESS_PATH).map_err(|e| {
-        Error::new(format!("Failed to read brightness: {e}"))
-            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
-    })?;
-    Ok(value_str)
+    let res = crate::backend::hardware::panel::get_brightness().add();
+    match res {
+        Ok(value) => Ok(value.to_string()),
+        Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::INTERNAL_SERVER_ERROR)),
+    }
 }
 
 pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
-    let value: u8 = std::str::from_utf8(&body)
+    let value: u32 = std::str::from_utf8(&body)
         .map_err(|e| {
             Error::new(format!("Failed to parse brightness: {e}"))
                 .into_http_error(StatusCode::BAD_REQUEST)
@@ -110,21 +107,11 @@ pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
                 .into_http_error(StatusCode::BAD_REQUEST)
         })?;
 
-    if value > MAX_BRIGHTNESS {
-        let e = Error::new(format!(
-            "Brightness value must be between 0 and {}",
-            MAX_BRIGHTNESS
-        ));
-        return Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST));
+    let res = crate::backend::hardware::panel::set_brightness(value).add();
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST)),
     }
-
-    info!("Setting brightness to {value}");
-
-    std::fs::write(BRIGHTNESS_PATH, value.to_string()).map_err(|e| {
-        Error::new(format!("Failed to set brightness: {e}"))
-            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)
-    })?;
-    Ok(())
 }
 
 pub async fn get_runtime_config() -> HttpResult<String> {
@@ -204,7 +191,7 @@ pub async fn logs() -> Result<Response<Body>> {
 }
 
 pub async fn settings() -> Html<&'static str> {
-    Html::from(include_str!("../../assets/settings.html"))
+    Html::from(include_str!("../../assets/settings.html")) //todo add new stuff
 }
 
 pub async fn login(State(state): State<ServerState>, request: Request) -> Response<Body> {

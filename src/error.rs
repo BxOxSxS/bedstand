@@ -5,7 +5,7 @@ use tracing::{error, warn};
 const IGNORED: [&str; 0] = [];
 const WARNED: [&str; 1] = ["Webhook retry cooldown not yet passed"];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
     file: String,
     line: u32,
@@ -66,7 +66,7 @@ impl std::fmt::Display for Location {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
     pub message: String,
     pub location: Vec<Location>,

@@ -1,5 +1,5 @@
 use crate::backend::config::global_config;
-use crate::backend::proximity;
+use crate::backend::hardware::proximity;
 use crate::error::*;
 use crate::ui::calendar::{Calendar, CalendarMessage};
 use crate::ui::clock::{Clock, ClockMessage};
@@ -55,6 +55,7 @@ impl View {
     pub fn new() -> Self {
         info!("Creating View");
         tokio::spawn(crate::backend::server::run());
+        crate::backend::hardware::ambient::spawn_ambient_controller();
 
         let mut top_bar = TopBar::new();
         top_bar.update(TopBarMessage::AskUpdate);

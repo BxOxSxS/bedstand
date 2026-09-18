@@ -1,15 +1,12 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-
 use crate::backend::config::global_config;
+use crate::backend::hardware::find_device;
 use crate::error::*;
 use iced::{
     Subscription,
     futures::{SinkExt, Stream, channel::mpsc},
     stream,
 };
+use std::path::Path;
 use tracing::{debug, info};
 
 #[derive(Debug, Clone, Copy)]
@@ -18,7 +15,7 @@ pub enum ProximityEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ProximityState {
+pub enum ProximityState {
     Far,
     Near,
 }
@@ -34,9 +31,13 @@ fn event_stream() -> impl Stream<Item = ProximityEvent> {
 }
 
 async fn run(output: &mut mpsc::Sender<ProximityEvent>) -> Result<()> {
-    let sysfs_path = find_device().await.add()?;
-
-    let raw_path = sysfs_path.join("in_proximity_raw");
+    let raw_path = {
+        let config = global_config().read().await;
+        find_device(config.proximity_device.clone())
+            .await
+            .add()?
+            .join(config.proximity_channel.clone())
+    };
 
     info!("Found proximity sensor: {}", raw_path.display());
 
@@ -78,39 +79,33 @@ async fn run(output: &mut mpsc::Sender<ProximityEvent>) -> Result<()> {
     }
 }
 
-async fn find_device() -> Result<PathBuf> {
-    const IIO_PATH: &str = "/sys/bus/iio/devices";
-    let device_name = global_config().read().await.proximity_device.clone();
-
-    for entry in fs::read_dir(IIO_PATH)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if !path.is_dir() {
-            continue;
-        }
-
-        let name_path = path.join("name");
-
-        let name = match fs::read_to_string(&name_path) {
-            Ok(name) => name.trim().to_owned(),
-            Err(_) => continue,
-        };
-
-        if name != device_name {
-            continue;
-        }
-
-        return Ok(path);
-    }
-
-    Err(Error::new(format!("IIO device '{device_name}' not found")))
-}
-
 async fn read_raw(raw_path: &Path) -> Result<i32> {
     let value = tokio::fs::read_to_string(raw_path).await?;
     let value = value.trim();
     value
         .parse::<i32>()
         .map_err(|error| Error::new(format!("Invalid proximity raw value '{value}': {error}")))
+}
+
+pub async fn read() -> Result<ProximityState> {
+    let (raw_path, threshold) = {
+        let config = global_config().read().await;
+        (
+            find_device(config.proximity_device.clone())
+                .await
+                .add()?
+                .join(config.proximity_channel.clone()),
+            config.proximity_threshold,
+        )
+    };
+
+    let raw = read_raw(&raw_path).await?;
+
+    let state = if raw >= threshold {
+        ProximityState::Near
+    } else {
+        ProximityState::Far
+    };
+
+    Ok(state)
 }
