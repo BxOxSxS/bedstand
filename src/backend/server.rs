@@ -1,5 +1,4 @@
-use crate::backend::config::global_config;
-use crate::backend::data::global_data;
+use crate::backend::app_state::global_app_state;
 use crate::backend::handlers::*;
 use crate::error::*;
 use axum::{
@@ -26,7 +25,7 @@ pub struct ServerState {
 
 pub async fn run() -> Result<()> {
     let (fullchain_path, privkey_path, addr, pem_notify, auth_tokens) = {
-        let config = global_config().read().await;
+        let config = global_app_state().config.read().await;
 
         (
             config.pem_fullchain_path.clone(),
@@ -110,11 +109,11 @@ pub async fn ask_update() -> Result<()> {
     debug!("Triggering webhook update");
 
     let (retry_cooldown, webhook_url) = {
-        let config = global_config().read().await;
+        let config = global_app_state().config.read().await;
         (config.retry_cooldown, config.webhook_url.clone())
     };
 
-    let last_try_time_field = &global_data().last_try_time;
+    let last_try_time_field = &global_app_state().data.last_try_time;
     let now = chrono::Local::now();
 
     if last_try_time_field.get().is_some_and(|last_try_time| {
@@ -122,7 +121,7 @@ pub async fn ask_update() -> Result<()> {
     }) {
         return Err(Error::new("Webhook retry cooldown not yet passed"));
     }
-    last_try_time_field.update(Some(now));
+    last_try_time_field.set(Some(now))?;
 
     let result = reqwest::Client::new().post(webhook_url).send().await;
 

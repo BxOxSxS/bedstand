@@ -1,4 +1,5 @@
-use crate::backend::data::{CalendarEvent, global_data};
+use crate::backend::app_state::data::CalendarEvent;
+use crate::backend::app_state::global_app_state;
 use crate::ui::theme::{line_height, style, text_size};
 use chrono::{DateTime, Datelike, Duration, Local, TimeZone, Timelike};
 use iced::widget::{column, rule, text};
@@ -61,7 +62,10 @@ impl Calendar {
 
     pub fn subscription(&self) -> Subscription<CalendarMessage> {
         Subscription::batch([
-            global_data().calendar.subscription(CalendarMessage::Update),
+            global_app_state()
+                .data
+                .calendar
+                .subscription(CalendarMessage::Update),
             iced::time::every(std::time::Duration::from_millis(1000))
                 .map(|_| CalendarMessage::Tick(Local::now())),
         ])

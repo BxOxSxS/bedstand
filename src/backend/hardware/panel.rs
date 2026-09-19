@@ -1,25 +1,44 @@
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use crate::error::*;
 use tracing::info;
+use crate::backend::app_state::state::Reader;
 
-const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness";
+const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness"; //todo make this configurable
 
-pub fn get_brightness() -> Result<u32> {
-    let value_str = std::fs::read_to_string(BRIGHTNESS_PATH)?;
-    let value = value_str.trim().parse::<u32>()?;
-    Ok(value)
-}
+pub fn reader() -> Result<Reader<Option<u32>>> {
+    let path = PathBuf::from(BRIGHTNESS_PATH);
 
-pub fn set_brightness(value: u32) -> Result<()> {
-    info!("Setting brightness to {value}");
-    std::fs::write(BRIGHTNESS_PATH, value.to_string())?;
-
-    Ok(())
-}
-
-pub fn set_brightness_if_changed(value: u32) -> Result<()> {
-    let current_value = get_brightness()?;
-    if current_value != value {
-        set_brightness(value)?;
+    if !path.is_file() {
+        return Err(Error::new(format!(
+            "Panel brightness path does not exist: {}",
+            path.display()
+        )));
     }
+
+    let reader: Reader<Option<u32>> = Arc::new(move || {
+        let path = path.clone();
+
+        Box::pin(async move {
+            read(&path).await
+        })
+    });
+
+    Ok(reader)
+}
+
+async fn read(path: &Path) -> Result<Option<u32>> {
+    let value_str = tokio::fs::read_to_string(path).await?;
+    let value = value_str.trim().parse::<u32>()?;
+
+    Ok(Some(value))
+}
+
+pub fn set(value: &Option<u32>) -> Result<()> {
+    if let Some(value) = value {
+        info!("Setting brightness to {value}");
+        std::fs::write(BRIGHTNESS_PATH, value.to_string())?;
+    }
+
     Ok(())
 }

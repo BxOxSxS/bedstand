@@ -1,4 +1,4 @@
-use crate::backend::data::global_data;
+use crate::backend::app_state::global_app_state;
 use crate::backend::server::trigger_ask_update;
 use crate::ui::theme::{line_height, text_size};
 use chrono::{DateTime, Local};
@@ -34,10 +34,10 @@ impl TopBar {
     pub fn update(&mut self, message: TopBarMessage) {
         match message {
             TopBarMessage::Tick(time) => {
-                let data_time = global_data().time.get();
-                let try_time = global_data().last_try_time.get();
+                let data_time = global_app_state().data.time.get();
+                let try_time = global_app_state().data.last_try_time.get();
 
-                self.update_indicator(&data_time, *try_time, time);
+                self.update_indicator(&data_time, try_time, time);
 
                 let new_update_str = Self::time_ago(&data_time);
 
@@ -45,8 +45,9 @@ impl TopBar {
                     self.update_str = new_update_str;
                 }
 
-                let alarm_time = global_data().alarm.get();
-                let new_alarm_string = match *alarm_time {
+                let alarm_time = global_app_state().data.alarm.get();
+
+                let new_alarm_string = match alarm_time {
                     Some(when) => format!("{} ({})", when.format("%H:%M"), Self::time_ago(&when)),
                     None => String::new(),
                 };
@@ -69,12 +70,12 @@ impl TopBar {
                 if new_update_str != self.update_str {
                     self.update_str = new_update_str;
                 }
-                let try_time = global_data().last_try_time.get();
-                self.update_indicator(&when, *try_time, Local::now());
+                let try_time = global_app_state().data.last_try_time.get();
+                self.update_indicator(&when, try_time, Local::now());
             }
             TopBarMessage::UpdateTryTimeChanged(when) => {
                 if let Some(when) = when {
-                    let time = global_data().time.get();
+                    let time = global_app_state().data.time.get();
                     self.update_indicator(&time, Some(when), Local::now());
                 }
             }
@@ -101,13 +102,16 @@ impl TopBar {
     pub fn subscription(&self) -> Subscription<TopBarMessage> {
         Subscription::batch([
             time::every(Duration::from_millis(1000)).map(|_| TopBarMessage::Tick(Local::now())),
-            global_data()
+            global_app_state()
+                .data
                 .alarm
                 .subscription(TopBarMessage::AlarmChanged),
-            global_data()
+            global_app_state()
+                .data
                 .time
                 .subscription(TopBarMessage::UpdateTimeChanged),
-            global_data()
+            global_app_state()
+                .data
                 .last_try_time
                 .subscription(TopBarMessage::UpdateTryTimeChanged),
         ])

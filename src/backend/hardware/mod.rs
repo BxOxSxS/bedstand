@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::*;
 use std::fs;
 use std::path::PathBuf;
 
@@ -6,7 +6,7 @@ pub mod ambient;
 pub mod panel;
 pub mod proximity;
 
-async fn find_device(device_name: String) -> crate::error::Result<PathBuf> {
+fn find_device(device_name: &str) -> Result<PathBuf> {
     const IIO_PATH: &str = "/sys/bus/iio/devices";
 
     for entry in fs::read_dir(IIO_PATH)? {
@@ -17,18 +17,14 @@ async fn find_device(device_name: String) -> crate::error::Result<PathBuf> {
             continue;
         }
 
-        let name_path = path.join("name");
-
-        let name = match fs::read_to_string(&name_path) {
+        let name = match fs::read_to_string(path.join("name")) {
             Ok(name) => name.trim().to_owned(),
             Err(_) => continue,
         };
 
-        if name != device_name {
-            continue;
+        if name == device_name {
+            return Ok(path);
         }
-
-        return Ok(path);
     }
 
     Err(Error::new(format!("IIO device '{device_name}' not found")))

@@ -36,10 +36,17 @@ fn main() -> Result<(), Error> {
         .with(file_layer)
         .init();
 
+    let app_state = backend::app_state::AppState::new().unwrap();
+    backend::app_state::APP_STATE.set(app_state).unwrap();
+
     let (size, fullscreen);
     // make sure to drop lock
     {
-        let config = backend::config::Config::load().unwrap().blocking_read();
+        let config = backend::app_state::APP_STATE
+            .get()
+            .unwrap()
+            .config
+            .blocking_read();
         size = Size::new(config.window_width, config.window_height);
         fullscreen = config.fullscreen;
     }

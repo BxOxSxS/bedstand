@@ -1,5 +1,4 @@
-use crate::backend::config::global_config;
-use crate::backend::hardware::proximity;
+use crate::backend::{self, app_state::global_app_state, hardware::proximity::ProximityState};
 use crate::error::*;
 use crate::ui::calendar::{Calendar, CalendarMessage};
 use crate::ui::clock::{Clock, ClockMessage};
@@ -26,7 +25,7 @@ pub enum ViewMessage {
     AnyClick,
     SplitTimeout,
     CalendarPressed,
-    Proximity,
+    Proximity(ProximityState),
     OffPressed,
     ScreenOn,
 }
@@ -54,8 +53,18 @@ pub struct View {
 impl View {
     pub fn new() -> Self {
         info!("Creating View");
-        tokio::spawn(crate::backend::server::run());
-        crate::backend::hardware::ambient::spawn_ambient_controller();
+
+        global_app_state().hardware.blocking_write().init().unwrap();
+
+        tokio::spawn(backend::server::run());
+
+        let ambient_state = global_app_state().hardware.blocking_read().ambient.clone();
+        let proximity_state = global_app_state()
+            .hardware
+            .blocking_read()
+            .proximity
+            .clone();
+        backend::hardware::ambient::spawn_reactor(ambient_state, proximity_state);
 
         let mut top_bar = TopBar::new();
         top_bar.update(TopBarMessage::AskUpdate);
@@ -128,7 +137,11 @@ impl View {
                 }
                 info!("ViewState changed to {:?}", self.state);
             }
-            ViewMessage::Proximity => {
+            ViewMessage::Proximity(p) => {
+                if p != ProximityState::Near {
+                    return;
+                }
+
                 match self.state {
                     ViewState::Clock => {
                         self.top_bar.update(TopBarMessage::AskUpdate);
@@ -148,7 +161,11 @@ impl View {
                 self.update(ViewMessage::AnyClick);
             }
             ViewMessage::OffPressed => {
-                let screen_off_cmd = global_config().blocking_read().screen_off_cmd.clone();
+                let screen_off_cmd = global_app_state()
+                    .config
+                    .blocking_read()
+                    .screen_off_cmd
+                    .clone();
                 if !screen_off_cmd.is_empty() {
                     let _ = std::process::Command::new("sh")
                         .args(["-c", &screen_off_cmd])
@@ -162,7 +179,11 @@ impl View {
                 info!("ViewState changed to {:?}", self.state);
             }
             ViewMessage::ScreenOn => {
-                let screen_on_cmd = global_config().blocking_read().screen_on_cmd.clone();
+                let screen_on_cmd = global_app_state()
+                    .config
+                    .blocking_read()
+                    .screen_on_cmd
+                    .clone();
                 if !screen_on_cmd.is_empty() {
                     let _ = std::process::Command::new("sh")
                         .args(["-c", &screen_on_cmd])
@@ -178,7 +199,7 @@ impl View {
     }
 
     pub fn subscription(&self) -> Subscription<ViewMessage> {
-        let drift_interval = global_config().blocking_read().drift_interval;
+        let drift_interval = global_app_state().config.blocking_read().drift_interval;
 
         let clock = self.clock.subscription().map(ViewMessage::Clock);
         let top_bar = self.top_bar.subscription().map(ViewMessage::TopBar);
@@ -196,7 +217,17 @@ impl View {
             _ => None,
         });
 
-        let proximity = proximity::subscription().map(|_| ViewMessage::Proximity);
+        let proximity = global_app_state()
+            .hardware
+            .blocking_read()
+            .proximity
+            .subscription(|p| {
+                if let Some(p) = p {
+                    ViewMessage::Proximity(p)
+                } else {
+                    ViewMessage::Proximity(ProximityState::Far)
+                }
+            });
 
         let split_timeout =
             Subscription::run_with(self.split_reset_tx.clone(), Self::split_timeout);
@@ -299,7 +330,7 @@ impl View {
                 return None;
             }
             loop {
-                let split_timeout = global_config().read().await.split_timeout;
+                let split_timeout = global_app_state().config.read().await.split_timeout;
                 tokio::select! {
                     _ = tokio::time::sleep(split_timeout) => {
                         return Some((
@@ -357,7 +388,7 @@ impl Drift {
     }
 
     fn shuffle(&mut self) {
-        let drift_range = global_config().blocking_read().drift_range;
+        let drift_range = global_app_state().config.blocking_read().drift_range;
 
         self.positions.clear();
 

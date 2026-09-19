@@ -1,19 +1,15 @@
-use std::sync::OnceLock;
-
-use crate::backend::field::Field;
+use crate::backend::app_state::state::State;
 use crate::error::*;
 use chrono::{DateTime, Local, TimeZone};
 use serde::Deserialize;
 use tracing::info;
 
-static DATA: OnceLock<Data> = OnceLock::new();
-
 #[derive(Debug, Clone)]
 pub struct Data {
-    pub last_try_time: Field<Option<DateTime<Local>>>,
-    pub time: Field<DateTime<Local>>,
-    pub alarm: Field<Option<DateTime<Local>>>,
-    pub calendar: Field<Vec<CalendarEvent>>,
+    pub last_try_time: State<Option<DateTime<Local>>>,
+    pub time: State<DateTime<Local>>,
+    pub alarm: State<Option<DateTime<Local>>>,
+    pub calendar: State<Vec<CalendarEvent>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -38,7 +34,7 @@ struct IncomingCalendarEvent {
 }
 
 impl Data {
-    pub fn update(json: &str) -> Result<()> {
+    pub fn update(&self, json: &str) -> Result<()> {
         info!("Updating data from JSON");
 
         let incoming: IncomingData = serde_json::from_str(json)?;
@@ -56,11 +52,9 @@ impl Data {
 
         let time = ts_to_local(incoming.time).add()?;
 
-        let data = global_data();
-        data.alarm.update(alarm);
-        data.calendar.update(calendar);
-        data.time.update(time);
-
+        self.alarm.set(alarm)?;
+        self.calendar.set(calendar)?;
+        self.time.set(time)?;
         Ok(())
     }
 }
@@ -68,16 +62,12 @@ impl Data {
 impl Default for Data {
     fn default() -> Self {
         Self {
-            last_try_time: Field::new(None),
-            time: Field::new(Local.timestamp_opt(0, 0).single().unwrap()),
-            alarm: Field::new(None),
-            calendar: Field::new(Vec::new()),
+            last_try_time: State::new(None),
+            time: State::new(Local.timestamp_opt(0, 0).single().unwrap()),
+            alarm: State::new(None),
+            calendar: State::new(Vec::new()),
         }
     }
-}
-
-pub fn global_data() -> &'static Data {
-    DATA.get_or_init(Data::default)
 }
 
 fn incoming_event_to_calendar(event: IncomingCalendarEvent) -> Result<CalendarEvent> {

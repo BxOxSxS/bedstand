@@ -1,5 +1,5 @@
-use crate::backend::config::{Config, config_path, global_config};
-use crate::backend::data::{Data, global_data};
+use crate::backend::app_state::config::{Config, config_path};
+use crate::backend::app_state::global_app_state;
 use crate::backend::server::ServerState;
 use crate::error::*;
 use axum::{
@@ -28,7 +28,7 @@ pub async fn update_handler(body: Bytes) -> HttpResult<()> {
         }
     };
 
-    match Data::update(json) {
+    match global_app_state().data.update(json) {
         Ok(()) => Ok(()),
         Err(err) => {
             let e = Error::new(format!("Data update failed: {err}"));
@@ -88,9 +88,17 @@ pub async fn reboot_handler() -> HttpResult<()> {
 }
 
 pub async fn get_brightness() -> HttpResult<String> {
-    let res = crate::backend::hardware::panel::get_brightness().add();
+    let res = global_app_state()
+        .hardware
+        .read()
+        .await
+        .panel
+        .refresh()
+        .await;
     match res {
-        Ok(value) => Ok(value.to_string()),
+        Ok(Some(value)) => Ok(value.to_string()),
+        Ok(None) => Err(Error::new("Brightness not available")
+            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)),
         Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::INTERNAL_SERVER_ERROR)),
     }
 }
@@ -107,7 +115,13 @@ pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
                 .into_http_error(StatusCode::BAD_REQUEST)
         })?;
 
-    let res = crate::backend::hardware::panel::set_brightness(value).add();
+    let res = global_app_state()
+        .hardware
+        .read()
+        .await
+        .panel
+        .set_force(Some(value))
+        .add();
     match res {
         Ok(_) => Ok(()),
         Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST)),
@@ -115,7 +129,7 @@ pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
 }
 
 pub async fn get_runtime_config() -> HttpResult<String> {
-    let config = global_config().read().await;
+    let config = global_app_state().config.read().await;
     let config_json = serde_json::to_string_pretty(&*config)?;
     Ok(config_json)
 }
@@ -128,7 +142,7 @@ pub async fn set_runtime_config(body: Bytes) -> HttpResult<()> {
 
     info!("Setting runtime config:\n{new_config:#?}");
 
-    let mut config = global_config().write().await;
+    let mut config = global_app_state().config.write().await;
     *config = new_config;
 
     Ok(())
@@ -155,14 +169,14 @@ pub async fn set_config(body: Bytes) -> HttpResult<()> {
 
     info!("Setting config:\n{new_config:#?}");
 
-    let mut config = global_config().write().await;
+    let mut config = global_app_state().config.write().await;
     *config = new_config;
 
     Ok(())
 }
 
 pub async fn get_data() -> HttpResult<String> {
-    let data = global_data();
+    let data = &global_app_state().data;
     let data_str = format!("{:#?}", data);
     Ok(data_str)
 }

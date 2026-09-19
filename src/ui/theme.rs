@@ -1,4 +1,4 @@
-use crate::backend::config::global_config;
+use crate::backend::app_state::global_app_state;
 use iced::{
     Theme,
     theme::{Palette, Style},
@@ -24,7 +24,7 @@ fn palette() -> Palette {
 
 pub fn style() -> Style {
     let (text_color, background_color) = {
-        let config = global_config().blocking_read();
+        let config = global_app_state().config.blocking_read();
         (config.color, config.background_color)
     };
 
@@ -35,13 +35,13 @@ pub fn style() -> Style {
 }
 
 pub fn text_size() -> u32 {
-    global_config().blocking_read().text_size
+    global_app_state().config.blocking_read().text_size
 }
 
 pub fn clock_text_size() -> u32 {
-    global_config().blocking_read().clock_text_size
+    global_app_state().config.blocking_read().clock_text_size
 }
 
 pub fn line_height() -> f32 {
-    global_config().blocking_read().line_height
+    global_app_state().config.blocking_read().line_height
 }

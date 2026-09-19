@@ -1,14 +1,6 @@
 use crate::error::*;
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
-use tokio::sync::RwLock;
 use tracing::{debug, info};
-
-static CONFIG: OnceLock<RwLock<Config>> = OnceLock::new();
-
-pub fn global_config() -> &'static RwLock<Config> {
-    CONFIG.get().expect("Config not initialized") // expect is safe here because CONFIG is initialized at startup
-}
 
 pub fn config_path() -> String {
     std::env::args()
@@ -22,9 +14,11 @@ pub struct Config {
     pub window_width: f32,
     pub window_height: f32,
 
-    pub clock_text_size: u32,
-    pub text_size: u32,
-    pub line_height: f32,
+    pub clock_text_size: u32,          //runtime
+    pub text_size: u32,                //runtime
+    pub line_height: f32,              //runtime
+    pub color: iced::Color,            //runtime
+    pub background_color: iced::Color, //runtime
 
     pub http_server: String,
     pub pem_fullchain_path: String,
@@ -34,9 +28,6 @@ pub struct Config {
 
     pub webhook_url: String,                 //runtime
     pub retry_cooldown: std::time::Duration, //runtime
-
-    pub color: iced::Color,
-    pub background_color: iced::Color,
 
     pub drift_range: i32,
     pub drift_interval: std::time::Duration,
@@ -60,7 +51,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<&'static RwLock<Config>> {
+    pub(crate) fn load() -> Result<Config> {
         info!("Loading config from {}", config_path());
 
         let config_file = std::fs::File::open(config_path())?;
@@ -68,10 +59,9 @@ impl Config {
 
         debug!("Loaded config:\n{:#?}", config);
 
-        let config = CONFIG.get_or_init(|| RwLock::new(config));
         Ok(config)
     }
-    pub fn save(&self) -> Result<()> {
+    pub(crate) fn save(&self) -> Result<()> {
         info!("Saving config to {}", config_path());
 
         let config_json = serde_json::to_string_pretty(self)?;

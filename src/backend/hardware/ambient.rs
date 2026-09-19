@@ -1,30 +1,54 @@
-use std::path::PathBuf;
+use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
-use crate::backend::config::global_config;
-use crate::backend::hardware::panel::set_brightness_if_changed;
+use crate::backend::app_state::global_app_state;
+use crate::backend::app_state::state::{Reader, State};
 use crate::backend::hardware::{find_device, proximity};
 use crate::error::*;
 
 const MIN_MAP_POINTS: usize = 2;
 
-pub fn spawn_ambient_controller() {
-    tokio::spawn(async {
-        let (
-            ambient_device,
-            ambient_channel,
-            poll_interval,
-            ambient_map,
-            smoothing,
-            proximity_ignore,
-            update_interval,
-        ) = {
-            let config = global_config().read().await;
+pub fn reader() -> Result<Reader<Option<u32>>> {
+    let (device, channel) = {
+        let config = global_app_state().config.blocking_read();
+
+        (
+            config.ambient_device.clone(),
+            config.ambient_channel.clone(),
+        )
+    };
+
+    let device_path = find_device(&device).add()?;
+    let channel_path = device_path.join(channel);
+
+    if !channel_path.is_file() {
+        return Err(Error::new(format!(
+            "Ambient channel path does not exist: {}",
+            channel_path.display()
+        )));
+    }
+
+    let reader: Reader<Option<u32>> = Arc::new(move || {
+        let channel_path = channel_path.clone();
+
+        Box::pin(async move {
+            read(&channel_path).await
+        })
+    });
+
+    Ok(reader)
+}
+
+pub fn spawn_reactor(
+    ambient: State<Option<u32>>,
+    proximity: State<Option<proximity::ProximityState>>,
+) {
+    tokio::spawn(async move {
+        let (ambient_map, smoothing, proximity_ignore, update_interval) = {
+            let config = global_app_state().config.read().await;
 
             (
-                config.ambient_device.clone(),
-                config.ambient_channel.clone(),
-                config.ambient_poll_interval,
                 config.ambient_map.clone(),
                 config.ambient_smoothing,
                 config.ambient_proximity_ignore,
@@ -32,96 +56,85 @@ pub fn spawn_ambient_controller() {
             )
         };
 
-        let device_path = match find_device(ambient_device).await.add() {
-            Ok(path) => path,
-            Err(_) => {
-                return;
-            }
-        };
-
-        let channel_path = device_path.join(ambient_channel);
-
-        if !channel_path.is_file() {
-            let _ = Error::new(format!(
-                "Ambient channel path does not exist: {}",
-                channel_path.display()
-            ));
-            return;
-        }
-
         if validate_map(&ambient_map).add().is_err() {
             return;
         }
 
-        run_ambient_controller(
-            channel_path,
-            ambient_map,
-            poll_interval,
-            update_interval,
-            smoothing,
-            proximity_ignore,
-        )
-        .await;
+        let mut ambient_rx = ambient.subscribe();
+        let mut proximity_rx = proximity.subscribe();
+
+        let mut ema = Ema::new(smoothing);
+        let mut update_interval = tokio::time::interval(update_interval);
+        let mut last_update = tokio::time::Instant::now();
+
+        let mut ambient_value = loop {
+            if let Some(value) = *ambient_rx.borrow() {
+                break value;
+            }
+
+            if ambient.changed(&mut ambient_rx).await.add().is_err() {
+                return;
+            }
+        };
+        let mut proximity_state = *proximity_rx.borrow();
+
+        loop {
+            tokio::select! {
+                result = ambient.changed(&mut ambient_rx) => {
+                    if result.add().is_err() {
+                        return;
+                    }
+
+                    ambient_value = if let Some(value) = *ambient_rx.borrow() {
+                        value
+                    } else {
+                        continue;
+                    };
+                }
+
+                result = proximity.changed(&mut proximity_rx) => {
+                    if result.add().is_err() {
+                        return;
+                    }
+
+                    proximity_state = *proximity_rx.borrow();
+                }
+
+                _ = update_interval.tick() => {
+                    if proximity_ignore
+                        && proximity_state == Some(proximity::ProximityState::Near) {
+                        continue;
+                    }
+
+                    let target = map_value(&ambient_map, ambient_value);
+
+                    let now = tokio::time::Instant::now();
+                    let dt = now.duration_since(last_update);
+                    last_update = now;
+
+                    let brightness = ema
+                        .update(target, dt)
+                        .round() as u32;
+
+                    let _ = global_app_state()
+                        .hardware
+                        .read()
+                        .await
+                        .panel
+                        .set(Some(brightness));
+                }
+            }
+        }
     });
 }
 
-async fn run_ambient_controller(
-    channel_path: PathBuf,
-    ambient_map: Vec<(u32, u32)>,
-    poll_interval: Duration,
-    update_interval: Duration,
-    smoothing: Duration,
-    proximity_ignore: bool,
-) {
-    let mut sensor_interval = tokio::time::interval(poll_interval);
-    let mut update_interval = tokio::time::interval(update_interval);
-
-    let mut ema = Ema::new(smoothing);
-    let mut last_update = tokio::time::Instant::now();
-
-    let mut target: Option<f64> = None;
-
-    loop {
-        tokio::select! {
-            biased;
-
-            _ = sensor_interval.tick() => {
-                let ambient = match read_ambient(&channel_path).add() {
-                    Ok(value) => value,
-                    Err(_) => continue,
-                };
-
-                target = Some(map_value(&ambient_map, ambient));
-            }
-            _ = update_interval.tick() => {
-                let Some(target) = target else {
-                    continue;
-                };
-
-                let now = tokio::time::Instant::now();
-                let dt = now.duration_since(last_update);
-                last_update = now;
-
-                let brightness = ema.update(target, dt);
-                let brightness = brightness.round() as u32;
-
-                if proximity_ignore && proximity::read().await == Ok(proximity::ProximityState::Near)
-                {
-                    continue;
-                }
-
-                let _ = set_brightness_if_changed(brightness).add();
-            }
-        }
-    }
-}
-
-fn read_ambient(channel_path: &PathBuf) -> Result<u32> {
-    let value = std::fs::read_to_string(channel_path)?
+async fn read(channel_path: &Path) -> Result<Option<u32>> {
+    let value = tokio::fs::read_to_string(channel_path)
+        .await?
         .trim()
         .parse::<u32>()?;
 
-    Ok(value)
+    Ok(Some(value))
 }
 
 fn validate_map(points: &[(u32, u32)]) -> Result<()> {
