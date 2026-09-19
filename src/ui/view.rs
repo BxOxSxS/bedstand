@@ -164,6 +164,7 @@ impl View {
                 let screen_off_cmd = global_app_state()
                     .config
                     .blocking_read()
+                    .panel
                     .screen_off_cmd
                     .clone();
                 if !screen_off_cmd.is_empty() {
@@ -182,6 +183,7 @@ impl View {
                 let screen_on_cmd = global_app_state()
                     .config
                     .blocking_read()
+                    .panel
                     .screen_on_cmd
                     .clone();
                 if !screen_on_cmd.is_empty() {
@@ -199,7 +201,7 @@ impl View {
     }
 
     pub fn subscription(&self) -> Subscription<ViewMessage> {
-        let drift_interval = global_app_state().config.blocking_read().drift_interval;
+        let drift_interval = global_app_state().config.blocking_read().drift.interval;
 
         let clock = self.clock.subscription().map(ViewMessage::Clock);
         let top_bar = self.top_bar.subscription().map(ViewMessage::TopBar);
@@ -388,7 +390,7 @@ impl Drift {
     }
 
     fn shuffle(&mut self) {
-        let drift_range = global_app_state().config.blocking_read().drift_range;
+        let drift_range = global_app_state().config.blocking_read().drift.range;
 
         self.positions.clear();
 

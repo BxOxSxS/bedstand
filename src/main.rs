@@ -47,8 +47,8 @@ fn main() -> Result<(), Error> {
             .unwrap()
             .config
             .blocking_read();
-        size = Size::new(config.window_width, config.window_height);
-        fullscreen = config.fullscreen;
+        size = Size::new(config.window.width, config.window.height);
+        fullscreen = config.window.fullscreen;
     }
 
     let mut font = Font::with_name("Roboto Condensed");

@@ -130,12 +130,12 @@ pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
 
 pub async fn get_runtime_config() -> HttpResult<String> {
     let config = global_app_state().config.read().await;
-    let config_json = serde_json::to_string_pretty(&*config)?;
+    let config_json = toml::to_string_pretty(&*config)?;
     Ok(config_json)
 }
 
 pub async fn set_runtime_config(body: Bytes) -> HttpResult<()> {
-    let new_config: Config = serde_json::from_slice(&body).map_err(|e| {
+    let new_config: Config = toml::from_str(&String::from_utf8_lossy(&body)).map_err(|e| {
         Error::new(format!("Failed to parse runtime config: {e}"))
             .into_http_error(StatusCode::BAD_REQUEST)
     })?;
@@ -158,7 +158,7 @@ pub async fn get_config() -> HttpResult<String> {
 }
 
 pub async fn set_config(body: Bytes) -> HttpResult<()> {
-    let new_config: Config = serde_json::from_slice(&body).map_err(|e| {
+    let new_config: Config = toml::from_slice(&body).map_err(|e| {
         Error::new(format!("Failed to parse config: {e}")).into_http_error(StatusCode::BAD_REQUEST)
     })?;
 

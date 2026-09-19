@@ -25,7 +25,7 @@ fn palette() -> Palette {
 pub fn style() -> Style {
     let (text_color, background_color) = {
         let config = global_app_state().config.blocking_read();
-        (config.color, config.background_color)
+        (config.appearance.color, config.appearance.background_color)
     };
 
     Style {
@@ -35,13 +35,25 @@ pub fn style() -> Style {
 }
 
 pub fn text_size() -> u32 {
-    global_app_state().config.blocking_read().text_size
+    global_app_state()
+        .config
+        .blocking_read()
+        .appearance
+        .text_size
 }
 
 pub fn clock_text_size() -> u32 {
-    global_app_state().config.blocking_read().clock_text_size
+    global_app_state()
+        .config
+        .blocking_read()
+        .appearance
+        .clock_text_size
 }
 
 pub fn line_height() -> f32 {
-    global_app_state().config.blocking_read().line_height
+    global_app_state()
+        .config
+        .blocking_read()
+        .appearance
+        .line_height
 }

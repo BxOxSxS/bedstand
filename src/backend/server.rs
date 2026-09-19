@@ -28,11 +28,11 @@ pub async fn run() -> Result<()> {
         let config = global_app_state().config.read().await;
 
         (
-            config.pem_fullchain_path.clone(),
-            config.pem_privkey_path.clone(),
-            config.http_server.clone(),
-            config.pem_notify,
-            config.auth_tokens.clone(),
+            config.http.fullchain_path.clone(),
+            config.http.privkey_path.clone(),
+            config.http.server.clone(),
+            config.http.notify,
+            config.http.auth_tokens.clone(),
         )
     };
 
@@ -110,7 +110,7 @@ pub async fn ask_update() -> Result<()> {
 
     let (retry_cooldown, webhook_url) = {
         let config = global_app_state().config.read().await;
-        (config.retry_cooldown, config.webhook_url.clone())
+        (config.webhook.retry_cooldown, config.webhook.url.clone())
     };
 
     let last_try_time_field = &global_app_state().data.last_try_time;

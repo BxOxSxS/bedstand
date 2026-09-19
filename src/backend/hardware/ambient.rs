@@ -14,8 +14,8 @@ pub fn reader() -> Result<Reader<Option<u32>>> {
         let config = global_app_state().config.blocking_read();
 
         (
-            config.ambient_device.clone(),
-            config.ambient_channel.clone(),
+            config.ambient.device.clone(),
+            config.ambient.channel.clone(),
         )
     };
 
@@ -32,9 +32,7 @@ pub fn reader() -> Result<Reader<Option<u32>>> {
     let reader: Reader<Option<u32>> = Arc::new(move || {
         let channel_path = channel_path.clone();
 
-        Box::pin(async move {
-            read(&channel_path).await
-        })
+        Box::pin(async move { read(&channel_path).await })
     });
 
     Ok(reader)
@@ -49,10 +47,10 @@ pub fn spawn_reactor(
             let config = global_app_state().config.read().await;
 
             (
-                config.ambient_map.clone(),
-                config.ambient_smoothing,
-                config.ambient_proximity_ignore,
-                config.ambient_update_interval,
+                config.ambient.map.clone(),
+                config.ambient.smoothing,
+                config.ambient.proximity_ignore,
+                config.ambient.update_interval,
             )
         };
 

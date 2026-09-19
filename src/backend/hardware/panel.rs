@@ -1,13 +1,18 @@
+use crate::backend::app_state::global_app_state;
+use crate::backend::app_state::state::Reader;
+use crate::error::*;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use crate::error::*;
 use tracing::info;
-use crate::backend::app_state::state::Reader;
-
-const BRIGHTNESS_PATH: &str = "/sys/class/backlight/panel/brightness"; //todo make this configurable
 
 pub fn reader() -> Result<Reader<Option<u32>>> {
-    let path = PathBuf::from(BRIGHTNESS_PATH);
+    let device = global_app_state()
+        .config
+        .blocking_read()
+        .panel
+        .device
+        .clone();
+    let path = PathBuf::from(format!("/sys/class/backlight/{}/brightness", device));
 
     if !path.is_file() {
         return Err(Error::new(format!(
@@ -19,9 +24,7 @@ pub fn reader() -> Result<Reader<Option<u32>>> {
     let reader: Reader<Option<u32>> = Arc::new(move || {
         let path = path.clone();
 
-        Box::pin(async move {
-            read(&path).await
-        })
+        Box::pin(async move { read(&path).await })
     });
 
     Ok(reader)
@@ -37,7 +40,16 @@ async fn read(path: &Path) -> Result<Option<u32>> {
 pub fn set(value: &Option<u32>) -> Result<()> {
     if let Some(value) = value {
         info!("Setting brightness to {value}");
-        std::fs::write(BRIGHTNESS_PATH, value.to_string())?;
+
+        let device = global_app_state()
+            .config
+            .blocking_read()
+            .panel
+            .device
+            .clone();
+        let path = PathBuf::from(format!("/sys/class/backlight/{}/brightness", device));
+
+        std::fs::write(&path, value.to_string())?;
     }
 
     Ok(())

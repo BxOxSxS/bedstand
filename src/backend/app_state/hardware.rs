@@ -21,9 +21,13 @@ impl HardwareState {
     }
 
     pub fn init(&mut self) -> Result<()> {
-        let (ambient_pool, proximity_pool) = {
+        let (ambient_pool, proximity_pool, panel_pool) = {
             let config = global_app_state().config.blocking_read();
-            (config.ambient_poll_interval, config.proximity_poll_interval)
+            (
+                config.ambient.poll_interval,
+                config.proximity.poll_interval,
+                config.panel.poll_interval,
+            )
         };
 
         if let Ok(reader) = hardware::ambient::reader() {
@@ -41,7 +45,7 @@ impl HardwareState {
             panel = panel.with_reader(reader);
             panel = panel.with_setter(hardware::panel::set);
             self.panel = panel;
-            self.panel.spawn_poller(ambient_pool, false)?;
+            self.panel.spawn_poller(panel_pool, false)?;
         }
 
         info!("Hardware initialized");
