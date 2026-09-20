@@ -244,7 +244,7 @@ impl Default for AmbientConfig {
             device: String::new(),
             channel: String::new(),
             poll_interval: Duration::from_secs(1),
-            update_interval: Duration::from_millis(5),
+            update_interval: Duration::from_millis(100),
             map: Vec::new(),
             smoothing: Duration::from_secs(3),
             proximity_ignore: true,
