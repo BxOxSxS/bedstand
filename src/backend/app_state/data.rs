@@ -52,9 +52,9 @@ impl Data {
 
         let time = ts_to_local(incoming.time).add()?;
 
-        self.alarm.set(alarm)?;
-        self.calendar.set(calendar)?;
-        self.time.set(time)?;
+        self.alarm.set_detached(alarm);
+        self.calendar.set_detached(calendar);
+        self.time.set_detached(time);
         Ok(())
     }
 }

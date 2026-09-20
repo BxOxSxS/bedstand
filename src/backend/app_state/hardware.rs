@@ -43,9 +43,12 @@ impl HardwareState {
         if let Ok(reader) = hardware::panel::reader() {
             let mut panel = self.panel.clone();
             panel = panel.with_reader(reader);
-            panel = panel.with_setter(hardware::panel::set);
-            self.panel = panel;
-            self.panel.spawn_poller(panel_pool, false)?;
+
+            if let Ok(setter) = hardware::panel::set() {
+                panel = panel.with_setter(setter);
+                self.panel = panel;
+                self.panel.spawn_poller(panel_pool, false)?;
+            }
         }
 
         info!("Hardware initialized");

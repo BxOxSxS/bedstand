@@ -26,17 +26,30 @@ pub type Reader<T> = Arc<
     dyn Fn() -> Pin<Box<dyn Future<Output = Result<T>> + Send + 'static>> + Send + Sync + 'static,
 >;
 
-pub type Setter<T> = Arc<dyn Fn(&T) -> Result<()> + Send + Sync + 'static>;
+pub type Setter<T> = Arc<
+    dyn Fn(T) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>> + Send + Sync + 'static,
+>;
 
 static NEXT_STATE_ID: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Clone)]
 pub struct State<T> {
     id: u64,
     sender: watch::Sender<T>,
     reader: Option<Reader<T>>,
     setter: Option<Setter<T>>,
     subscriber_notify: Arc<Notify>,
+}
+
+impl<T> Clone for State<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            sender: self.sender.clone(),
+            reader: self.reader.clone(),
+            setter: self.setter.clone(),
+            subscriber_notify: self.subscriber_notify.clone(),
+        }
+    }
 }
 
 impl<T> State<T> {
@@ -47,7 +60,7 @@ impl<T> State<T> {
 
         debug!("Created state with id {}", id);
 
-        let setter: Setter<T> = Arc::new(|_| Ok(()));
+        let setter: Setter<T> = Arc::new(|_| Box::pin(async { Ok(()) }));
 
         Self {
             id,
@@ -63,11 +76,8 @@ impl<T> State<T> {
         self
     }
 
-    pub fn with_setter<F>(mut self, setter: F) -> Self
-    where
-        F: Fn(&T) -> Result<()> + Send + Sync + 'static,
-    {
-        self.setter = Some(Arc::new(setter));
+    pub fn with_setter(mut self, setter: Setter<T>) -> Self {
+        self.setter = Some(setter);
         self
     }
 
@@ -99,9 +109,9 @@ impl<T> State<T> {
         Ok(value)
     }
 
-    pub fn set(&self, value: T) -> Result<()>
+    pub async fn set(&self, value: T) -> Result<()>
     where
-        T: PartialEq,
+        T: PartialEq + Clone,
     {
         if *self.sender.borrow() == value {
             return Ok(());
@@ -112,24 +122,49 @@ impl<T> State<T> {
             .as_ref()
             .ok_or_else(|| Error::new("state has no setter"))?;
 
-        setter(&value)?;
+        setter(value.clone()).await?;
 
         self.publish(value);
 
         Ok(())
     }
 
-    pub fn set_force(&self, value: T) -> Result<()> {
+    pub async fn set_force(&self, value: T) -> Result<()>
+    where
+        T: Clone,
+    {
         let setter = self
             .setter
             .as_ref()
             .ok_or_else(|| Error::new("state has no setter"))?;
 
-        setter(&value)?;
+        setter(value.clone()).await?;
 
         let _ = self.sender.send_replace(value);
 
         Ok(())
+    }
+
+    pub fn set_detached(&self, value: T)
+    where
+        T: Clone + PartialEq + Send + Sync + 'static,
+    {
+        let state: State<T> = (*self).clone();
+
+        tokio::spawn(async move {
+            let _ = state.set(value).await.add();
+        });
+    }
+
+    pub fn set_force_detached(&self, value: T)
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        let state: State<T> = (*self).clone();
+
+        tokio::spawn(async move {
+            let _ = state.set_force(value).await.add();
+        });
     }
 
     pub fn subscribe(&self) -> watch::Receiver<T> {

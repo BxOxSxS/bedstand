@@ -119,7 +119,8 @@ pub fn spawn_reactor(
                         .read()
                         .await
                         .panel
-                        .set(Some(brightness));
+                        .set(Some(brightness))
+                        .await;
                 }
             }
         }

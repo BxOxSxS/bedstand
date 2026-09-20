@@ -121,6 +121,7 @@ pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
         .await
         .panel
         .set_force(Some(value))
+        .await
         .add();
     match res {
         Ok(_) => Ok(()),

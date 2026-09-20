@@ -121,7 +121,7 @@ pub async fn ask_update() -> Result<()> {
     }) {
         return Err(Error::new("Webhook retry cooldown not yet passed"));
     }
-    last_try_time_field.set(Some(now))?;
+    last_try_time_field.set(Some(now)).await?;
 
     let result = reqwest::Client::new().post(webhook_url).send().await;
 
