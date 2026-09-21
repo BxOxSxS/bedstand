@@ -16,7 +16,7 @@ use nix::{
     unistd::execv,
 };
 use std::{env::current_exe, ffi::CString, os::unix::ffi::OsStrExt};
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tracing::{info, warn};
 
 pub async fn update_handler(body: Bytes) -> HttpResult<()> {
@@ -85,48 +85,6 @@ pub async fn reboot_handler() -> HttpResult<()> {
         }
     });
     Ok(())
-}
-
-pub async fn get_brightness() -> HttpResult<String> {
-    let res = global_app_state()
-        .hardware
-        .read()
-        .await
-        .panel
-        .refresh()
-        .await;
-    match res {
-        Ok(Some(value)) => Ok(value.to_string()),
-        Ok(None) => Err(Error::new("Brightness not available")
-            .into_http_error(StatusCode::INTERNAL_SERVER_ERROR)),
-        Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::INTERNAL_SERVER_ERROR)),
-    }
-}
-
-pub async fn set_brightness(body: Bytes) -> HttpResult<()> {
-    let value: u32 = std::str::from_utf8(&body)
-        .map_err(|e| {
-            Error::new(format!("Failed to parse brightness: {e}"))
-                .into_http_error(StatusCode::BAD_REQUEST)
-        })?
-        .parse()
-        .map_err(|e| {
-            Error::new(format!("Failed to parse brightness: {e}"))
-                .into_http_error(StatusCode::BAD_REQUEST)
-        })?;
-
-    let res = global_app_state()
-        .hardware
-        .read()
-        .await
-        .panel
-        .set_force(Some(value))
-        .await
-        .add();
-    match res {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST)),
-    }
 }
 
 pub async fn get_runtime_config() -> HttpResult<String> {
@@ -203,6 +161,99 @@ pub async fn logs() -> Result<Response<Body>> {
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(Body::from_stream(ReceiverStream::new(rx)))?)
+}
+
+pub async fn ambient() -> Result<Response<Body>> {
+    let stream = global_app_state()
+        .hardware
+        .read()
+        .await
+        .ambient
+        .stream_raw()
+        .map(|v| {
+            if let Some(value) = v {
+                Ok::<_, std::convert::Infallible>(Bytes::from(format!("{}\n", value)))
+            } else {
+                Ok(Bytes::from("N/A\n"))
+            }
+        });
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(stream))?)
+}
+
+pub async fn proximity() -> Result<Response<Body>> {
+    let stream = global_app_state()
+        .hardware
+        .read()
+        .await
+        .proximity
+        .stream_raw()
+        .map(|v| {
+            if let Some(value) = v {
+                match value {
+                    crate::backend::hardware::proximity::ProximityState::Near => {
+                        Ok::<_, std::convert::Infallible>(Bytes::from("Near\n"))
+                    }
+                    crate::backend::hardware::proximity::ProximityState::Far => {
+                        Ok(Bytes::from("Far\n"))
+                    }
+                }
+            } else {
+                Ok(Bytes::from("N/A\n"))
+            }
+        });
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(stream))?)
+}
+
+pub async fn panel() -> Result<Response<Body>> {
+    let stream = global_app_state()
+        .hardware
+        .read()
+        .await
+        .panel
+        .stream_raw()
+        .map(|v| {
+            if let Some(value) = v {
+                Ok::<_, std::convert::Infallible>(Bytes::from(format!("{}\n", value)))
+            } else {
+                Ok(Bytes::from("N/A\n"))
+            }
+        });
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(stream))?)
+}
+
+pub async fn set_panel(body: Bytes) -> HttpResult<()> {
+    let value: u32 = std::str::from_utf8(&body)
+        .map_err(|e| {
+            Error::new(format!("Failed to parse brightness: {e}"))
+                .into_http_error(StatusCode::BAD_REQUEST)
+        })?
+        .parse()
+        .map_err(|e| {
+            Error::new(format!("Failed to parse brightness: {e}"))
+                .into_http_error(StatusCode::BAD_REQUEST)
+        })?;
+
+    let res = global_app_state()
+        .hardware
+        .read()
+        .await
+        .panel
+        .set_force(Some(value))
+        .await
+        .add();
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e).map_err(|e| e.into_http_error(StatusCode::BAD_REQUEST)),
+    }
 }
 
 pub async fn settings() -> Html<&'static str> {

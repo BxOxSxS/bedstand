@@ -77,7 +77,7 @@
 <details id="logsSection" open>
     <summary>Logs</summary>
     <pre id="logs"></pre>
-    <button onclick="loadLogs()">Load Logs</button>
+    <button onclick="loadLogs()">Fetch Logs Stream</button>
 </details>
 
 <details>
@@ -118,6 +118,33 @@
     <div id="configStatus" class="status"></div>
 </details>
 
+<details id="hardwareSection">
+    <summary>Hardware</summary>
+
+    <details id="ambientSection">
+        <summary>Ambient</summary>
+        <pre id="ambientStream"></pre>
+        <button onclick="getAmbient()">Fetch ambient stream</button>
+    </details>
+
+    <details id="proximitySection">
+        <summary>Proximity</summary>
+        <pre id="proximityStream"></pre>
+        <button onclick="getProximity()">Fetch proximity stream</button>
+    </details>
+
+    <details id="panelSection">
+        <summary>Panel</summary>
+
+        <pre id="panelStream"></pre>
+        <button onclick="getPanel()">Fetch panel stream</button>
+
+        <input id="panelInput" type="number" step="1">
+        <button onclick="setPanel()">Set panel</button>
+        <div id="panelStatus" class="status"></div>
+    </details>
+</details>
+
 <details id="systemSection" open>
     <summary>System</summary>
 
@@ -125,12 +152,6 @@
         <button onclick="systemAction('/settings/restart')">Restart</button>
         <button onclick="systemAction('/settings/reboot')">Reboot</button>
         <button onclick="systemAction('/settings/poweroff')">Poweroff</button>
-    </div>
-
-    <div class="row">
-        <button onclick="getBrightness()">Fetch brightness</button>
-        <input id="brightness" type="number" min="0" max="24" placeholder="Brightness">
-        <button onclick="setBrightness()">Set brightness</button>
     </div>
 
     <div id="systemStatus" class="status"></div>
@@ -239,21 +260,11 @@
         }
     }
 
-    async function getBrightness() {
+    async function setPanel() {
         try {
-            const value = await request("/settings/brightness");
-            document.getElementById("brightness").value = value.trim();
-            setStatus("systemStatus", "");
-        } catch (e) {
-            setStatus("systemStatus", e.message);
-        }
-    }
+            const value = document.getElementById("panelInput").value;
 
-    async function setBrightness() {
-        try {
-            const value = document.getElementById("brightness").value;
-
-            await request("/settings/brightness", {
+            await request("/settings/panel", {
                 method: "POST",
                 headers: {
                     "Content-Type": "text/plain"
@@ -261,22 +272,33 @@
                 body: value
             });
 
-            setStatus("systemStatus", "OK");
+            setStatus("panelStatus", "OK");
         } catch (e) {
-            setStatus("systemStatus", e.message);
+            setStatus("panelStatus", e.message);
         }
     }
 
-    function scrollLogsToBottom() {
-        const output = document.getElementById("logs");
-        output.scrollTop = output.scrollHeight;
+    async function loadLogs() {
+        await getStream("logs", "logs");
     }
 
-    async function loadLogs() {
-        const output = document.getElementById("logs");
+    async function getAmbient() {
+        await getStream("ambient", "ambientStream");
+    }
+
+    async function getProximity() {
+        await getStream("proximity", "proximityStream");
+    }
+
+    async function getPanel() {
+        await getStream("panel", "panelStream");
+    }
+
+    async function getStream(name, outputId) {
+        const output = document.getElementById(outputId);
 
         try {
-            const response = await fetch("/settings/logs");
+            const response = await fetch("/settings/" + name);
 
             if (!response.ok || !response.body) {
                 throw new Error(
@@ -299,16 +321,20 @@
                     stream: true
                 });
 
-                scrollLogsToBottom();
+                scrollToBottom(outputId);
             }
 
             output.textContent += decoder.decode();
-            output.textContent += "\n[log stream closed]\n";
-            scrollLogsToBottom();
+            output.textContent += "\n[" + name + " stream closed]\n";
+            scrollToBottom(outputId);
         } catch (e) {
-            output.textContent += `\n[log stream closed: ${e.message}]\n`;
-            scrollLogsToBottom();
+            output.textContent += "\n[" + name + " stream closed]\n";
+            scrollToBottom(outputId);
         }
+    }
+    function scrollToBottom(id) {
+        const output = document.getElementById(id);
+        output.scrollTop = output.scrollHeight;
     }
 
     loadLogs();

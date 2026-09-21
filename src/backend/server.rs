@@ -50,14 +50,16 @@ pub async fn run() -> Result<()> {
         .route("/settings/restart", post(restart))
         .route("/settings/poweroff", post(poweroff))
         .route("/settings/reboot", post(reboot_handler))
-        .route("/settings/brightness", get(get_brightness))
-        .route("/settings/brightness", post(set_brightness))
         .route("/settings/runtime_config", get(get_runtime_config))
         .route("/settings/runtime_config", post(set_runtime_config))
         .route("/settings/config", get(get_config))
         .route("/settings/config", post(set_config))
         .route("/settings/data", get(get_data))
         .route("/settings/logs", get(logs))
+        .route("/settings/ambient", get(ambient))
+        .route("/settings/proximity", get(proximity))
+        .route("/settings/panel", get(panel))
+        .route("/settings/panel", post(set_panel))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
