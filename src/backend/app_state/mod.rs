@@ -1,9 +1,10 @@
 pub mod config;
 pub mod data;
 pub mod hardware;
+pub mod runtime;
 pub mod state;
 
-use crate::backend::app_state::hardware::HardwareState;
+use crate::backend::app_state::{hardware::HardwareState, runtime::RuntimeState};
 use crate::error::*;
 use std::sync::OnceLock;
 use tokio::sync::RwLock;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub config: RwLock<config::Config>,
     pub data: data::Data,
     pub hardware: RwLock<HardwareState>,
+    pub runtime: RuntimeState,
 }
 
 impl AppState {
@@ -31,6 +33,7 @@ impl AppState {
             config: RwLock::new(config),
             data,
             hardware: RwLock::new(hardware),
+            runtime: RuntimeState::new(),
         })
     }
 }

@@ -230,6 +230,18 @@ pub async fn panel() -> Result<Response<Body>> {
         .body(Body::from_stream(stream))?)
 }
 
+pub async fn ui_alpha() -> Result<Response<Body>> {
+    let stream = global_app_state()
+        .runtime
+        .ui_alpha
+        .stream_raw()
+        .map(|v| Ok::<_, std::convert::Infallible>(Bytes::from(format!("{:.3}\n", v))));
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(stream))?)
+}
+
 pub async fn set_panel(body: Bytes) -> HttpResult<()> {
     let value: u32 = std::str::from_utf8(&body)
         .map_err(|e| {
@@ -257,7 +269,7 @@ pub async fn set_panel(body: Bytes) -> HttpResult<()> {
 }
 
 pub async fn settings() -> Html<&'static str> {
-    Html::from(include_str!("../../assets/settings.html")) //todo add new stuff
+    Html::from(include_str!("../../assets/settings.html"))
 }
 
 pub async fn login(State(state): State<ServerState>, request: Request) -> Response<Body> {

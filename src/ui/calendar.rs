@@ -72,7 +72,12 @@ impl Calendar {
     }
 
     pub fn view(&self) -> Element<'_, CalendarMessage> {
-        let no_event_text = global_app_state().config.blocking_read().translation.no_events.clone();
+        let no_event_text = global_app_state()
+            .config
+            .blocking_read()
+            .translation
+            .no_events
+            .clone();
 
         let today_columns = if self.today.is_empty() {
             column![

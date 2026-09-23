@@ -142,7 +142,7 @@ pub struct AmbientConfig {
     #[serde(with = "humantime_serde")]
     pub update_interval: Duration,
 
-    pub map: Vec<(u32, u32)>,
+    pub map: Vec<(u32, i32)>,
 
     #[serde(with = "humantime_serde")]
     pub smoothing: Duration,

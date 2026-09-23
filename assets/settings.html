@@ -145,6 +145,19 @@
     </details>
 </details>
 
+<details id="runtimeSection">
+    <summary>Runtime</summary>
+
+    <details id="uiAlphaSection">
+        <summary>UI Alpha</summary>
+
+        <pre id="uiAlphaStream"></pre>
+        <button onclick="getUiAlpha()">Fetch UI Alpha stream</button>
+    </details>
+
+    <div id="runtimeStatus" class="status"></div>
+</details>
+
 <details id="systemSection" open>
     <summary>System</summary>
 
@@ -292,6 +305,10 @@
 
     async function getPanel() {
         await getStream("panel", "panelStream");
+    }
+
+    async function getUiAlpha() {
+        await getStream("ui_alpha", "uiAlphaStream");
     }
 
     async function getStream(name, outputId) {

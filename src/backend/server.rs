@@ -60,6 +60,7 @@ pub async fn run() -> Result<()> {
         .route("/settings/proximity", get(proximity))
         .route("/settings/panel", get(panel))
         .route("/settings/panel", post(set_panel))
+        .route("/settings/ui_alpha", get(ui_alpha))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

@@ -23,10 +23,13 @@ fn palette() -> Palette {
 }
 
 pub fn style() -> Style {
-    let (text_color, background_color) = {
+    let (mut text_color, background_color) = {
         let config = global_app_state().config.blocking_read();
         (config.appearance.color, config.appearance.background_color)
     };
+
+    let alpha = global_app_state().runtime.ui_alpha.get();
+    text_color.a = alpha;
 
     Style {
         text_color,

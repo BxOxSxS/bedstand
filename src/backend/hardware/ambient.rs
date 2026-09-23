@@ -8,6 +8,7 @@ use crate::backend::hardware::{find_device, proximity};
 use crate::error::*;
 
 const MIN_MAP_POINTS: usize = 2;
+const MIN_ALPHA_Y: i32 = -1000;
 
 pub fn reader() -> Result<Reader<Option<u32>>> {
     let (device, channel) = {
@@ -54,9 +55,10 @@ pub fn spawn_reactor(
             )
         };
 
-        if validate_map(&ambient_map).add().is_err() {
-            return;
-        }
+        let max_y = match validate_map(&ambient_map).add() {
+            Ok(max_y) => max_y,
+            Err(_) => return,
+        };
 
         let mut ambient_rx = ambient.subscribe();
         let mut proximity_rx = proximity.subscribe();
@@ -105,14 +107,21 @@ pub fn spawn_reactor(
                     }
 
                     let target = map_value(&ambient_map, ambient_value);
+                    let target = normalize_value(target, max_y);
 
                     let now = tokio::time::Instant::now();
                     let dt = now.duration_since(last_update);
                     last_update = now;
 
-                    let brightness = ema
-                        .update(target, dt)
-                        .round() as u32;
+                    let value = ema.update(target, dt);
+
+                    let (brightness, alpha) = if value < 0.0 {
+                        let alpha = (1.0 + value).clamp(0.0, 1.0);
+                        (0, alpha)
+                    } else {
+                        let brightness = (value * max_y as f64).round() as u32;
+                        (brightness, 1.0)
+                    };
 
                     let _ = global_app_state()
                         .hardware
@@ -121,6 +130,8 @@ pub fn spawn_reactor(
                         .panel
                         .set(Some(brightness))
                         .await;
+
+                    let _ = global_app_state().runtime.ui_alpha.set(alpha as f32).await.add();
                 }
             }
         }
@@ -136,28 +147,44 @@ async fn read(channel_path: &Path) -> Result<Option<u32>> {
     Ok(Some(value))
 }
 
-fn validate_map(points: &[(u32, u32)]) -> Result<()> {
+fn validate_map(points: &[(u32, i32)]) -> Result<u32> {
     if points.len() < MIN_MAP_POINTS {
         return Err(Error::new(format!(
             "ambient_map must contain at least {MIN_MAP_POINTS} points"
         )));
     }
 
-    for pair in points.windows(2) {
-        let (x0, _) = pair[0];
-        let (x1, _) = pair[1];
+    let mut previous_x = None;
+    let mut max_y = None;
 
-        if x0 >= x1 {
+    for &(x, y) in points {
+        if y < MIN_ALPHA_Y {
             return Err(Error::new(format!(
-                "ambient_map X values must be strictly increasing: {x0} >= {x1}"
+                "ambient_map Y values must be >= {MIN_ALPHA_Y}: {y}"
             )));
         }
+
+        if let Some(previous_x) = previous_x
+            && x <= previous_x
+        {
+            return Err(Error::new(format!(
+                "ambient_map X values must be strictly increasing: {previous_x} >= {x}"
+            )));
+        }
+
+        if y > 0 {
+            max_y = Some(max_y.map_or(y, |current: i32| current.max(y)));
+        }
+
+        previous_x = Some(x);
     }
 
-    Ok(())
+    max_y
+        .map(|y| y as u32)
+        .ok_or_else(|| Error::new("ambient_map must contain at least one Y value > 0"))
 }
 
-fn map_value(points: &[(u32, u32)], x: u32) -> f64 {
+fn map_value(points: &[(u32, i32)], x: u32) -> f64 {
     if x <= points[0].0 {
         return points[0].1 as f64;
     }
@@ -186,6 +213,14 @@ fn map_value(points: &[(u32, u32)], x: u32) -> f64 {
     }
 
     unreachable!()
+}
+
+fn normalize_value(value: f64, max_y: u32) -> f64 {
+    if value < 0.0 {
+        value / (-MIN_ALPHA_Y as f64)
+    } else {
+        value / max_y as f64
+    }
 }
 
 struct Ema {
