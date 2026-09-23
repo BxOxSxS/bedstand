@@ -72,9 +72,11 @@ impl Calendar {
     }
 
     pub fn view(&self) -> Element<'_, CalendarMessage> {
+        let no_event_text = global_app_state().config.blocking_read().translation.no_events.clone();
+
         let today_columns = if self.today.is_empty() {
             column![
-                text("<brak wydarzeń>")
+                text(no_event_text.clone())
                     .size(text_size())
                     .line_height(line_height())
             ]
@@ -98,7 +100,7 @@ impl Calendar {
 
         let tomorrow_columns = if self.tomorrow.is_empty() {
             column![
-                text("<brak wydarzeń>")
+                text(no_event_text)
                     .size(text_size())
                     .line_height(line_height())
             ]
@@ -164,16 +166,19 @@ impl Calendar {
             && end.minute() == 0
     }
 
-    fn weekday_name(weekday: chrono::Weekday) -> &'static str {
-        match weekday {
-            chrono::Weekday::Mon => "Pn",
-            chrono::Weekday::Tue => "Wt",
-            chrono::Weekday::Wed => "Śr",
-            chrono::Weekday::Thu => "Cz",
-            chrono::Weekday::Fri => "Pt",
-            chrono::Weekday::Sat => "So",
-            chrono::Weekday::Sun => "Nd",
-        }
+    fn weekday_name(weekday: chrono::Weekday) -> String {
+        let config = global_app_state().config.blocking_read();
+
+        let str = match weekday {
+            chrono::Weekday::Mon => &config.translation.monday,
+            chrono::Weekday::Tue => &config.translation.tuesday,
+            chrono::Weekday::Wed => &config.translation.wednesday,
+            chrono::Weekday::Thu => &config.translation.thursday,
+            chrono::Weekday::Fri => &config.translation.friday,
+            chrono::Weekday::Sat => &config.translation.saturday,
+            chrono::Weekday::Sun => &config.translation.sunday,
+        };
+        str.clone()
     }
 
     fn sort_events(&mut self, events: Vec<CalendarEvent>) {

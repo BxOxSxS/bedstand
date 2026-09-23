@@ -52,6 +52,8 @@ pub struct Config {
 
     #[serde(with = "humantime_serde")]
     pub split_timeout: Duration,
+
+    pub translation: TranslationConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +150,19 @@ pub struct AmbientConfig {
     pub proximity_ignore: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TranslationConfig {
+    pub no_events: String,
+    pub monday: String,
+    pub tuesday: String,
+    pub wednesday: String,
+    pub thursday: String,
+    pub friday: String,
+    pub saturday: String,
+    pub sunday: String,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -160,6 +175,7 @@ impl Default for Config {
             proximity: ProximityConfig::default(),
             ambient: AmbientConfig::default(),
             split_timeout: Duration::from_secs(60),
+            translation: TranslationConfig::default(),
         }
     }
 }
@@ -248,6 +264,21 @@ impl Default for AmbientConfig {
             map: Vec::new(),
             smoothing: Duration::from_secs(3),
             proximity_ignore: true,
+        }
+    }
+}
+
+impl Default for TranslationConfig {
+    fn default() -> Self {
+        Self {
+            no_events: "<no events>".to_string(),
+            monday: "Mon".to_string(),
+            tuesday: "Tue".to_string(),
+            wednesday: "Wed".to_string(),
+            thursday: "Thu".to_string(),
+            friday: "Fri".to_string(),
+            saturday: "Sat".to_string(),
+            sunday: "Sun".to_string(),
         }
     }
 }
