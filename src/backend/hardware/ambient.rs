@@ -123,15 +123,15 @@ pub fn spawn_reactor(
                         (brightness, 1.0)
                     };
 
+                    let _ = global_app_state().runtime.ui_alpha.set(alpha as f32).await.add();
                     let _ = global_app_state()
                         .hardware
                         .read()
                         .await
                         .panel
                         .set(Some(brightness))
-                        .await;
-
-                    let _ = global_app_state().runtime.ui_alpha.set(alpha as f32).await.add();
+                        .await
+                        .add();
                 }
             }
         }
@@ -155,7 +155,7 @@ fn validate_map(points: &[(u32, i32)]) -> Result<u32> {
     }
 
     let mut previous_x = None;
-    let mut max_y = None;
+    let mut max_y = 0;
 
     for &(x, y) in points {
         if y < MIN_ALPHA_Y {
@@ -172,16 +172,11 @@ fn validate_map(points: &[(u32, i32)]) -> Result<u32> {
             )));
         }
 
-        if y > 0 {
-            max_y = Some(max_y.map_or(y, |current: i32| current.max(y)));
-        }
-
+        max_y = max_y.max(y);
         previous_x = Some(x);
     }
 
-    max_y
-        .map(|y| y as u32)
-        .ok_or_else(|| Error::new("ambient_map must contain at least one Y value > 0"))
+    Ok(max_y as u32)
 }
 
 fn map_value(points: &[(u32, i32)], x: u32) -> f64 {
@@ -218,6 +213,8 @@ fn map_value(points: &[(u32, i32)], x: u32) -> f64 {
 fn normalize_value(value: f64, max_y: u32) -> f64 {
     if value < 0.0 {
         value / (-MIN_ALPHA_Y as f64)
+    } else if max_y == 0 {
+        0.0
     } else {
         value / max_y as f64
     }
