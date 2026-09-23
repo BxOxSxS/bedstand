@@ -3,7 +3,6 @@ use crate::backend::app_state::state::{Reader, Setter};
 use crate::error::*;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::info;
 
 pub fn reader() -> Result<Reader<Option<u32>>> {
     let device = global_app_state()
@@ -50,8 +49,6 @@ pub fn set() -> Result<Setter<Option<u32>>> {
 
         Box::pin(async move {
             if let Some(value) = value {
-                info!("Setting brightness to {value}");
-
                 tokio::fs::write(&path, value.to_string()).await?;
             }
 
