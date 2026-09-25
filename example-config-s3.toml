@@ -1,0 +1,76 @@
+split_timeout = "1m"
+
+[window]
+fullscreen = true
+width = 1280.0
+height = 720.0
+
+[appearance]
+clock_text_size = 350
+text_size = 75
+line_height = 1.0
+color = "#1a0000"
+background_color = "#000000"
+
+[http]
+server = "0.0.0.0:443"
+fullchain_path = "bedstand-tls/fullchain.pem"
+privkey_path = "bedstand-tls/priv.key"
+notify = true
+auth_tokens = []
+
+[webhook]
+url = ""
+retry_cooldown = "1m"
+
+[drift]
+range = 2
+interval = "1m"
+
+[panel]
+device = "panel"
+poll_interval = "1s"
+screen_off_cmd = "xset dpms force off"
+screen_on_cmd = "xset dpms force on && xset -dpms"
+
+[proximity]
+device = "cm36651"
+channel = "in_proximity_raw"
+threshold = 3
+poll_interval = "100ms"
+
+[ambient]
+device = "cm36651"
+channel = "in_illuminance_clear_raw"
+poll_interval = "1s"
+update_interval = "100ms"
+map = [
+    [
+        0,
+        0,
+    ],
+    [
+        2,
+        0,
+    ],
+    [
+        3,
+        10,
+    ],
+    [
+        9,
+        24,
+    ],
+]
+smoothing = "3s"
+proximity_ignore = true
+
+[translation] # Polish translation
+no_events = "<brak wydarzeń>"
+monday = "Pn"
+tuesday = "Wt"
+wednesday = "Śr"
+thursday = "Cz"
+friday = "Pt"
+saturday = "So"
+sunday = "Nd"

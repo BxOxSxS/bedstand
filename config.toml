@@ -1,0 +1,269 @@
+# Time after which the view returns to the fullscreen clock when there are no touches
+# Example
+#split_timeout = "30s"
+# Default
+#split_timeout = "60s"
+
+
+[window]
+# Whether to start in fullscreen mode
+# Example
+#fullscreen = false
+# Default
+#fullscreen = true
+
+# Window width in pixels when fullscreen is disabled
+# Example
+#width = 1920.0
+# Default
+#width = 1280.0
+
+# Window height in pixels when fullscreen is disabled
+# Example
+#height = 1080.0
+# Default
+#height = 720.0
+
+
+[appearance]
+# Font size of the clock numbers
+# Example
+#clock_text_size = 300
+# Default
+#clock_text_size = 350
+
+# Font size of other text
+# Example
+#text_size = 60
+# Default
+#text_size = 75
+
+# Line height multiplier for text
+# Example
+#line_height = 1.2
+# Default
+#line_height = 1.0
+
+# Base color of the UI and text
+# Example
+#color = "#fff4dd"
+# Default
+#color = "#190000ff"
+
+# Background color of the display
+# Example
+#background_color = "#101010"
+# Default
+#background_color = "#000000"
+
+
+[http]
+# Address and port on which the HTTP server listens
+# Example
+#server = "0.0.0.0:443"
+# Default
+#server = "0.0.0.0:8080"
+
+# Path to the TLS full chain certificate. Leave empty to disable TLS
+# Example
+#fullchain_path = "/etc/bedstand/fullchain.pem"
+# Default
+#fullchain_path = ""
+
+# Path to the TLS private key. Leave empty to disable TLS
+# Example
+#privkey_path = "/etc/bedstand/privkey.pem"
+# Default
+#privkey_path = ""
+
+# Whether to use filesystem notifications to watch certificate files and hot-reload them. Useful with ACME clients
+# Example
+#notify = true
+# Default
+#notify = false
+
+# Authentication tokens accepted by the HTTP server. Used both in authorization bearer header and cookie from login page
+# Example
+#auth_tokens = ["change-me", "another-token"]
+# Default
+#auth_tokens = []
+
+
+[webhook]
+# URL used to request the device to send its data to the HTTP server
+# Example
+#url = "https://example.com/webhook"
+# Default
+#url = ""
+
+# Time limit between webhook requests, both failed and successful
+# Example
+#retry_cooldown = "30s"
+# Default
+#retry_cooldown = "60s"
+
+
+[drift]
+# Maximum UI drift in pixels. The whole UI is moved to random positions within this range to prevent OLED burn-in
+# Example
+#range = 5
+# Default
+#range = 2
+
+# Interval between UI drift updates
+# Example
+#interval = "5m"
+# Default
+#interval = "60s"
+
+
+[panel]
+# Sysfs device used to control the display panel. From /sys/class/backlight/<value>
+# Example
+#device = "display"
+# Default
+#device = "panel"
+
+# Interval between panel state reads
+# Example
+#poll_interval = "500ms"
+# Default
+#poll_interval = "1s"
+
+# Command used to turn the screen off. Executed using sh -c
+# Example
+#screen_off_cmd = "echo 0 > /sys/class/backlight/panel/bl_power"
+# Default
+#screen_off_cmd = ""
+# Command used to turn the screen on. Executed using sh -c
+# Example
+#screen_on_cmd = "echo 1 > /sys/class/backlight/panel/bl_power"
+# Default
+#screen_on_cmd = ""
+
+
+[proximity]
+# Sysfs device name used for the proximity sensor. Read from /sys/bus/iio/devices/iio:deviceX/name, where X is generated at boot
+# Example
+#device = "cm36651"
+# Default
+#device = ""
+
+# Sysfs channel containing the proximity value. From /sys/bus/iio/devices/iio:deviceX/<value> where X is generated at boot
+# Example
+#channel = "in_proximity_raw"
+# Default
+#channel = ""
+
+# Distance threshold below which the sensor reports the near state. Value is sensor-specific
+# Example
+#threshold = 10
+# Default
+#threshold = 0
+
+# Interval between proximity sensor reads
+# Example
+#poll_interval = "500ms"
+# Default
+#poll_interval = "100ms"
+
+
+[ambient]
+# Sysfs device used for the ambient light sensor. Read from /sys/bus/iio/devices/iio:deviceX/name, where X is generated at boot
+# Example
+#device = "cm36651"
+# Default
+#device = ""
+
+# Sysfs channel containing the ambient light value. From /sys/bus/iio/devices/iio:deviceX/<value> where X is generated at boot
+# Example
+#channel = "in_illuminance_raw"
+# Default
+#channel = ""
+
+# Interval between ambient sensor reads
+# Example
+#poll_interval = "50ms"
+# Default
+#poll_interval = "1s"
+
+# Interval at which the ambient value is applied to the display
+# Example
+#update_interval = "1s"
+# Default
+#update_interval = "100ms"
+
+# Maps ambient sensor values to panel brightness and UI opacity
+# Positive values set panel brightness (device-specific), negative values set UI opacity, where -1000 is fully transparent
+# Example
+#map = [
+#    [0, -500], # when ambient sensor reads 0, set UI opacity to 50%
+#    [2, 0], # when ambient sensor reads 2, set UI opacity to 100% and panel brightness to 0
+#    [10, 24], # when ambient sensor reads 10, set panel brightness to 24
+#    [99999, 24], # prevent linear extrapolation between 10 and 100000, keep panel brightness at 24
+#    [100000, 1000] # impossible value just to set max for smoothing algorithm
+#]
+# Default
+#map = []
+
+# Smoothing time used by the exponential moving average (EMA) to smooth brightness and opacity changes
+# Example
+#smoothing = "0s"
+# Default
+#smoothing = "3s"
+
+# Whether ambient updates are ignored while the proximity sensor detects the near state
+# Example
+#proximity_ignore = false
+# Default
+#proximity_ignore = true
+
+
+[translation]
+# Text displayed when there are no calendar events
+# Example
+#no_events = "No events"
+# Default
+#no_events = "<no events>"
+
+# Text displayed for Monday
+# Example
+#monday = "Monday"
+# Default
+#monday = "Mon"
+
+# Text displayed for Tuesday
+# Example
+#tuesday = "Tuesday"
+# Default
+#tuesday = "Tue"
+
+# Text displayed for Wednesday
+# Example
+#wednesday = "Wednesday"
+# Default
+#wednesday = "Wed"
+
+# Text displayed for Thursday
+# Example
+#thursday = "Thursday"
+# Default
+#thursday = "Thu"
+
+# Text displayed for Friday
+# Example
+#friday = "Friday"
+# Default
+#friday = "Fri"
+
+# Text displayed for Saturday
+# Example
+#saturday = "Saturday"
+# Default
+#saturday = "Sat"
+
+# Text displayed for Sunday
+# Example
+#sunday = "Sunday"
+# Default
+#sunday = "Sun"
