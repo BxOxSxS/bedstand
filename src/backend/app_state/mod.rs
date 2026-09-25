@@ -25,7 +25,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Result<AppState> {
-        let config = config::Config::load().add()?;
+        let config = config::Config::load().add().unwrap_or_default();
         let data = data::Data::default();
         let hardware = HardwareState::blank();
 
