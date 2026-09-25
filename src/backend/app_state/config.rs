@@ -9,7 +9,7 @@ use crate::error::*;
 pub fn config_path() -> String {
     std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "clock-iced.toml".to_string())
+        .unwrap_or_else(|| "bedstand.toml".to_string())
 }
 
 impl Config {

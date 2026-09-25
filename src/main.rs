@@ -6,10 +6,10 @@ use crate::ui::view::View;
 use iced::{Error, Font, Size, application, font::Weight, window};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub const LOG_FILE: &str = "clock-iced.log";
+pub const LOG_FILE: &str = "bedstand.log";
 
 fn main() -> Result<(), Error> {
-    let filter = EnvFilter::new("warn,clock_iced=debug");
+    let filter = EnvFilter::new("warn,bedstand=debug");
     let log_file = std::fs::File::create(LOG_FILE).unwrap();
 
     let console_layer = fmt::layer()
