@@ -93,6 +93,7 @@ impl<T> State<T> {
         self.sender.borrow().clone()
     }
 
+    #[allow(dead_code)]
     pub async fn refresh(&self) -> Result<T>
     where
         T: Clone + PartialEq,
@@ -156,6 +157,7 @@ impl<T> State<T> {
         });
     }
 
+    #[allow(dead_code)]
     pub fn set_force_detached(&self, value: T)
     where
         T: Clone + Send + Sync + 'static,
