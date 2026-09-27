@@ -49,6 +49,7 @@ pub struct Config {
     pub panel: PanelConfig,
     pub proximity: ProximityConfig,
     pub ambient: AmbientConfig,
+    pub battery: BatteryConfig,
 
     #[serde(with = "humantime_serde")]
     pub split_timeout: Duration,
@@ -152,6 +153,15 @@ pub struct AmbientConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct BatteryConfig {
+    pub channel: String,
+
+    #[serde(with = "humantime_serde")]
+    pub poll_interval: Duration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TranslationConfig {
     pub no_events: String,
     pub monday: String,
@@ -174,6 +184,7 @@ impl Default for Config {
             panel: PanelConfig::default(),
             proximity: ProximityConfig::default(),
             ambient: AmbientConfig::default(),
+            battery: BatteryConfig::default(),
             split_timeout: Duration::from_secs(60),
             translation: TranslationConfig::default(),
         }
@@ -264,6 +275,15 @@ impl Default for AmbientConfig {
             map: Vec::new(),
             smoothing: Duration::from_secs(3),
             proximity_ignore: true,
+        }
+    }
+}
+
+impl Default for BatteryConfig {
+    fn default() -> Self {
+        Self {
+            channel: String::new(),
+            poll_interval: Duration::from_secs(1),
         }
     }
 }

@@ -2,7 +2,7 @@ use crate::backend::app_state::global_app_state;
 use crate::backend::server::trigger_ask_update;
 use crate::ui::theme::{line_height, text_size};
 use chrono::{DateTime, Local};
-use iced::widget::{mouse_area, row, space, text};
+use iced::widget::{container, mouse_area, row, space, stack, text};
 use iced::{Element, Length, Subscription, time};
 use std::time::Duration;
 
@@ -13,6 +13,7 @@ pub enum TopBarMessage {
     AskUpdate,
     UpdateTimeChanged(DateTime<Local>),
     UpdateTryTimeChanged(Option<DateTime<Local>>),
+    BatteryChanged(Option<u8>),
 }
 
 #[derive(Clone)]
@@ -20,6 +21,7 @@ pub struct TopBar {
     alarm_string: String,
     update_str: String,
     update_indicator: String,
+    battery_string: String,
 }
 
 impl TopBar {
@@ -28,6 +30,7 @@ impl TopBar {
             alarm_string: String::new(),
             update_str: String::new(),
             update_indicator: String::new(),
+            battery_string: String::new(),
         }
     }
 
@@ -79,6 +82,14 @@ impl TopBar {
                     self.update_indicator(&time, Some(when), Local::now());
                 }
             }
+            TopBarMessage::BatteryChanged(b) => match b {
+                Some(b) => {
+                    self.battery_string = format!("{}%", b);
+                }
+                None => {
+                    self.battery_string = String::new();
+                }
+            },
         }
     }
 
@@ -88,12 +99,25 @@ impl TopBar {
                 .size(text_size())
                 .line_height(line_height()),
             space::horizontal(),
-            mouse_area(
-                text(format!("{}{}", self.update_indicator, self.update_str))
+            text(&self.battery_string)
+                .size(text_size())
+                .line_height(line_height()),
+            stack![
+                text("…-99m") // virtual invisible text to reserve max space to prevent battery from changing position on different text
                     .size(text_size())
                     .line_height(line_height())
-            )
-            .on_press(TopBarMessage::AskUpdate),
+                    .color(iced::Color::TRANSPARENT),
+                container(
+                    mouse_area(
+                        text(format!("{}{}", self.update_indicator, self.update_str))
+                            .size(text_size())
+                            .line_height(line_height())
+                    )
+                    .on_press(TopBarMessage::AskUpdate)
+                )
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right),
+            ],
         ]
         .width(Length::Fill)
         .into()
@@ -114,6 +138,11 @@ impl TopBar {
                 .data
                 .last_try_time
                 .subscription(TopBarMessage::UpdateTryTimeChanged),
+            global_app_state()
+                .hardware
+                .blocking_read()
+                .battery
+                .subscription(|b| TopBarMessage::BatteryChanged(b)),
         ])
     }
 

@@ -268,6 +268,26 @@ pub async fn set_panel(body: Bytes) -> HttpResult<()> {
     }
 }
 
+pub async fn battery() -> Result<Response<Body>> {
+    let stream = global_app_state()
+        .hardware
+        .read()
+        .await
+        .battery
+        .stream_raw()
+        .map(|v| {
+            if let Some(value) = v {
+                Ok::<_, std::convert::Infallible>(Bytes::from(format!("{}\n", value)))
+            } else {
+                Ok(Bytes::from("N/A\n"))
+            }
+        });
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Body::from_stream(stream))?)
+}
+
 pub async fn settings() -> Html<&'static str> {
     Html::from(include_str!("../../../assets/settings.html"))
 }

@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 pub mod ambient;
+pub(crate) mod battery;
 pub mod panel;
 pub mod proximity;
 

@@ -143,6 +143,12 @@
         <button onclick="setPanel()">Set panel</button>
         <div id="panelStatus" class="status"></div>
     </details>
+
+    <details id="batterySection">
+        <summary>Battery</summary>
+        <pre id="batteryStream"></pre>
+        <button onclick="getBattery()">Fetch battery stream</button>
+    </details>
 </details>
 
 <details id="runtimeSection">
@@ -309,6 +315,10 @@
 
     async function getUiAlpha() {
         await getStream("ui_alpha", "uiAlphaStream");
+    }
+
+    async function getBattery() {
+        await getStream("battery", "batteryStream");
     }
 
     async function getStream(name, outputId) {

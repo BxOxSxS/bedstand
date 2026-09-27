@@ -1,7 +1,6 @@
 mod handlers;
 
 use crate::backend::app_state::global_app_state;
-use handlers::*;
 use crate::error::*;
 use axum::{
     Router,
@@ -14,6 +13,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use axum_server::tls_rustls::RustlsConfig;
+use handlers::*;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -63,6 +63,7 @@ pub async fn run() -> Result<()> {
         .route("/settings/panel", get(panel))
         .route("/settings/panel", post(set_panel))
         .route("/settings/ui_alpha", get(ui_alpha))
+        .route("/settings/battery", get(battery))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
