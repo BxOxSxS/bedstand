@@ -219,6 +219,20 @@
 #proximity_ignore = true
 
 
+[battery]
+# Sysfs channel containing the battery percentage
+# Example
+#channel = "/sys/class/power_supply/max170xx_battery/capacity"
+# Default
+#channel = ""
+
+# Interval between battery reads
+# Example
+#poll_interval = "60s"
+# Default
+#poll_interval = "1s"
+
+
 [translation]
 # Text displayed when there are no calendar events
 # Example

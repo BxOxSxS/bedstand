@@ -65,6 +65,10 @@ map = [
 smoothing = "3s"
 proximity_ignore = true
 
+[battery]
+channel = "/sys/class/power_supply/max170xx_battery/capacity"
+poll_interval = "1s"
+
 [translation] # Polish translation
 no_events = "<brak wydarzeń>"
 monday = "Pn"
