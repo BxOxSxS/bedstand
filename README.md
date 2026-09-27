@@ -14,6 +14,7 @@ Bedstand started as an attempt to give an old Samsung Galaxy S III running postm
 
 - Clock display
 - Synchronized calendar events and alarm information
+- Battery info (both phone and device)
 - Touch interaction and scrollable views
 - Proximity sensor gestures for switching between views
 - Ambient light sensor support with configurable brightness and UI opacity mapping

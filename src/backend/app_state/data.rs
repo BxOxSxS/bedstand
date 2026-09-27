@@ -10,6 +10,7 @@ pub struct Data {
     pub time: State<DateTime<Local>>,
     pub alarm: State<Option<DateTime<Local>>>,
     pub calendar: State<Vec<CalendarEvent>>,
+    pub battery: State<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -24,6 +25,7 @@ struct IncomingData {
     alarm: i64,
     calendar: Vec<IncomingCalendarEvent>,
     time: i64,
+    battery: u8,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,6 +57,7 @@ impl Data {
         self.alarm.set_detached(alarm);
         self.calendar.set_detached(calendar);
         self.time.set_detached(time);
+        self.battery.set_detached(incoming.battery);
         Ok(())
     }
 }
@@ -66,6 +69,7 @@ impl Default for Data {
             time: State::new(Local.timestamp_opt(0, 0).single().unwrap()),
             alarm: State::new(None),
             calendar: State::new(Vec::new()),
+            battery: State::new(0),
         }
     }
 }
