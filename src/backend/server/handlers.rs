@@ -269,7 +269,7 @@ pub async fn set_panel(body: Bytes) -> HttpResult<()> {
 }
 
 pub async fn settings() -> Html<&'static str> {
-    Html::from(include_str!("../../assets/settings.html"))
+    Html::from(include_str!("../../../assets/settings.html"))
 }
 
 pub async fn login(State(state): State<ServerState>, request: Request) -> Response<Body> {
@@ -277,7 +277,7 @@ pub async fn login(State(state): State<ServerState>, request: Request) -> Respon
         return Redirect::temporary("/settings").into_response();
     }
 
-    Html::from(include_str!("../../assets/login.html")).into_response()
+    Html::from(include_str!("../../../assets/login.html")).into_response()
 }
 
 #[derive(serde::Deserialize)]

@@ -1,5 +1,7 @@
+mod handlers;
+
 use crate::backend::app_state::global_app_state;
-use crate::backend::handlers::*;
+use handlers::*;
 use crate::error::*;
 use axum::{
     Router,
