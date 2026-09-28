@@ -1,4 +1,5 @@
 split_timeout = "1m"
+remote_battery_show_threshold = 100
 
 [window]
 fullscreen = true
@@ -67,6 +68,7 @@ proximity_ignore = true
 
 [battery]
 channel = "/sys/class/power_supply/max170xx_battery/capacity"
+show_threshold = 25
 poll_interval = "1s"
 
 [translation] # Polish translation

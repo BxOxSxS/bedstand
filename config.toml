@@ -4,6 +4,12 @@
 # Default
 #split_timeout = "60s"
 
+# Maximum phone battery percentage at which it is shown in UI, otherwise hidden
+# Example
+#remote_battery_show_threshold = 25
+# Default
+#remote_battery_show_threshold = 100
+
 
 [window]
 # Whether to start in fullscreen mode
@@ -225,6 +231,12 @@
 #channel = "/sys/class/power_supply/max170xx_battery/capacity"
 # Default
 #channel = ""
+
+# Maximum battery percentage at which it is shown in UI, otherwise hidden
+# Example
+#show_threshold = 100
+# Default
+#show_threshold = 25
 
 # Interval between battery reads
 # Example

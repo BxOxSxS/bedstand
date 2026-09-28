@@ -50,11 +50,11 @@ pub struct Config {
     pub proximity: ProximityConfig,
     pub ambient: AmbientConfig,
     pub battery: BatteryConfig,
+    pub translation: TranslationConfig,
 
     #[serde(with = "humantime_serde")]
     pub split_timeout: Duration,
-
-    pub translation: TranslationConfig,
+    pub remote_battery_show_threshold: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +155,7 @@ pub struct AmbientConfig {
 #[serde(default)]
 pub struct BatteryConfig {
     pub channel: String,
+    pub show_threshold: u8,
 
     #[serde(with = "humantime_serde")]
     pub poll_interval: Duration,
@@ -185,6 +186,7 @@ impl Default for Config {
             proximity: ProximityConfig::default(),
             ambient: AmbientConfig::default(),
             battery: BatteryConfig::default(),
+            remote_battery_show_threshold: 100,
             split_timeout: Duration::from_secs(60),
             translation: TranslationConfig::default(),
         }
@@ -283,6 +285,7 @@ impl Default for BatteryConfig {
     fn default() -> Self {
         Self {
             channel: String::new(),
+            show_threshold: 25,
             poll_interval: Duration::from_secs(1),
         }
     }
