@@ -5,12 +5,14 @@ use crate::ui::clock::{Clock, ClockMessage};
 use crate::ui::tap_scroll::tap_scroll;
 use crate::ui::theme::{line_height, style, text_size};
 use crate::ui::top_bar::{TopBar, TopBarMessage};
-use iced::widget::text;
 use iced::{
     Element, Length, Subscription, Vector, event,
     futures::stream::{self, BoxStream},
     time,
-    widget::{Space, column, container, float, mouse_area, row, scrollable, stack},
+    widget::{
+        Column, Container, MouseArea, Space, column, container, float, mouse_area, row, scrollable,
+        stack, text,
+    },
 };
 use rand::seq::SliceRandom;
 use tracing::{debug, info};
@@ -245,15 +247,19 @@ impl View {
         ])
     }
 
-    pub fn view(&self) -> Element<'_, ViewMessage> {
-        let fullscreen_clock = container(self.clock.view().map(ViewMessage::Clock))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center(Length::Fill);
+    fn clock(&self) -> Container<'_, ViewMessage> {
+        container(
+            mouse_area(self.clock.view().map(ViewMessage::Clock))
+                .on_press(ViewMessage::ClockPressed),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+    }
 
-        let panel = container(column![
+    fn panel(&self) -> Column<'_, ViewMessage> {
+        column![
             self.top_bar.view().map(ViewMessage::TopBar),
-            tap_scroll(self.calendar.view().map(ViewMessage::Calendar))
+            tap_scroll(self.calendar.view().map(ViewMessage::Calendar),)
                 .style(|theme, status| {
                     let mut s = scrollable::default(theme, status);
                     s.vertical_rail.scroller.background = style().text_color.into();
@@ -266,56 +272,38 @@ impl View {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .on_press(ViewMessage::CalendarPressed),
-        ])
+        ]
         .width(Length::Fill)
         .height(Length::Fill)
-        .center(Length::Fill);
+    }
 
-        let moving_clock = float(fullscreen_clock).translate(move |bounds, viewport| {
-            let current_center_x = bounds.x + bounds.width / 2.0;
-            let target_center_x = viewport.x + viewport.width / 6.0;
-            let target_translation = target_center_x - current_center_x;
+    fn off_button(&self) -> MouseArea<'_, ViewMessage> {
+        mouse_area(text("X").size(text_size()).line_height(line_height()))
+            .on_press(ViewMessage::OffPressed)
+    }
 
-            let progress = if self.state == ViewState::Split {
-                1.0
-            } else {
-                0.0
-            };
-            Vector::new(target_translation * progress, 0.0)
-        });
+    pub fn view(&self) -> Element<'_, ViewMessage> {
+        let content: Element<'_, ViewMessage> = match self.state {
+            ViewState::Clock => self.clock().into(),
 
-        let content: Element<'_, ViewMessage> = if self.state == ViewState::Split {
-            let clock_hit_area = mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
-                .on_press(ViewMessage::ClockPressed);
-
-            let split_layout = row![
-                container(clock_hit_area)
-                    .width(Length::FillPortion(1))
-                    .height(Length::Fill),
-                panel.width(Length::FillPortion(2)).height(Length::Fill),
-            ]
-            .width(Length::Fill)
-            .height(Length::Fill);
-
-            stack![
-                split_layout,
-                moving_clock,
-                mouse_area(text("X").size(text_size()).line_height(line_height()))
-                    .on_press(ViewMessage::OffPressed),
+            ViewState::Split => stack![
+                row![
+                    self.clock().width(Length::FillPortion(1)),
+                    self.panel().width(Length::FillPortion(2)),
+                ]
+                .width(Length::Fill)
+                .height(Length::Fill),
+                self.off_button(),
             ]
             .width(Length::Fill)
             .height(Length::Fill)
-            .into()
-        } else if self.state == ViewState::Clock {
-            mouse_area(moving_clock)
-                .on_press(ViewMessage::ClockPressed)
-                .into()
-        } else if self.state == ViewState::Calendar {
-            panel.into()
-        } else {
-            mouse_area(Space::new().height(Length::Fill).width(Length::Fill))
+            .into(),
+
+            ViewState::Calendar => self.panel().into(),
+
+            ViewState::Off => mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
                 .on_press(ViewMessage::ScreenOn)
-                .into()
+                .into(),
         };
 
         float(content)
