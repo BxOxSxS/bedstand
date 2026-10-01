@@ -6,6 +6,7 @@ pub mod state;
 
 use crate::backend::app_state::{hardware::HardwareState, runtime::RuntimeState};
 use crate::error::*;
+use crate::log::LogLayer;
 use std::sync::OnceLock;
 use tokio::sync::RwLock;
 
@@ -21,6 +22,7 @@ pub struct AppState {
     pub data: data::Data,
     pub hardware: RwLock<HardwareState>,
     pub runtime: RuntimeState,
+    pub logs: LogLayer,
 }
 
 impl AppState {
@@ -28,12 +30,14 @@ impl AppState {
         let config = config::Config::load().add().unwrap_or_default();
         let data = data::Data::default();
         let hardware = HardwareState::blank();
+        let logs = LogLayer::new(config.log.broadcast_capacity).add()?;
 
         Ok(AppState {
             config: RwLock::new(config),
             data,
             hardware: RwLock::new(hardware),
             runtime: RuntimeState::new(),
+            logs,
         })
     }
 }

@@ -1,28 +1,22 @@
 mod backend;
 mod error;
+mod log;
 mod ui;
 
 use crate::ui::view::View;
 use iced::{Error, Font, Size, application, font::Weight, window};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub const LOG_FILE: &str = "bedstand.log";
-
 fn main() -> Result<(), Error> {
-    let filter = EnvFilter::new("warn,bedstand=debug");
-    let log_file = std::fs::File::create(LOG_FILE).unwrap();
+    let app_state = backend::app_state::AppState::new().unwrap();
+    let log_layer = app_state.logs.clone();
 
-    let console_layer = fmt::layer()
+    backend::app_state::APP_STATE.set(app_state).unwrap();
+
+    let filter = EnvFilter::new("warn,bedstand=debug");
+    let fmt_layer = fmt::layer()
         .compact()
-        .with_thread_names(false)
-        .with_thread_ids(false)
-        .with_line_number(false)
-        .with_file(false)
-        .with_target(false)
-        .with_filter(filter.clone());
-    let file_layer = fmt::layer()
-        .compact()
-        .with_writer(log_file)
+        .with_writer(log_layer)
         .with_ansi(false)
         .with_thread_names(false)
         .with_thread_ids(false)
@@ -30,14 +24,7 @@ fn main() -> Result<(), Error> {
         .with_file(false)
         .with_target(false)
         .with_filter(filter);
-
-    tracing_subscriber::registry()
-        .with(console_layer)
-        .with(file_layer)
-        .init();
-
-    let app_state = backend::app_state::AppState::new().unwrap();
-    backend::app_state::APP_STATE.set(app_state).unwrap();
+    tracing_subscriber::registry().with(fmt_layer).init();
 
     let (size, fullscreen);
     // make sure to drop lock

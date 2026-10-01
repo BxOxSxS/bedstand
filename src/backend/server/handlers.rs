@@ -10,12 +10,12 @@ use axum::{
     response::{Html, IntoResponse, Redirect},
 };
 use axum_extra::extract::cookie::{Cookie, SameSite};
-use linemux::MuxedLines;
 use nix::{
     sys::reboot::{RebootMode, reboot},
     unistd::execv,
 };
 use std::{env::current_exe, ffi::CString, os::unix::ffi::OsStrExt};
+use tokio::io::AsyncReadExt;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tracing::{info, warn};
 
@@ -141,20 +141,56 @@ pub async fn get_data() -> HttpResult<String> {
 }
 
 pub async fn logs() -> Result<Response<Body>> {
+    let logs = global_app_state().logs.clone();
+    let (mut live, history_size) = logs.subscribe_snapshot().add()?;
+
     let (tx, rx) = tokio::sync::mpsc::channel::<std::result::Result<Bytes, std::io::Error>>(64);
 
     tokio::spawn(async move {
-        let mut lines = MuxedLines::new()?;
-        lines.add_file_from_start(crate::LOG_FILE).await?;
+        let mut file = tokio::fs::File::open(crate::log::LOG_FILE).await?;
 
-        while let Ok(Some(line)) = lines.next_line().await {
-            let bytes = Bytes::from(format!("{}\n", line.line()));
+        let mut remaining = history_size;
+        let mut buffer = vec![0u8; 16 * 1024]; // 16 KB buffer
 
-            if tx.send(Ok(bytes)).await.is_err() {
-                // client disconnected, stop sending logs
+        while remaining > 0 {
+            let read_size = remaining.min(buffer.len() as u64) as usize;
+            let read = file.read(&mut buffer[..read_size]).await?;
+
+            if read == 0 {
                 break;
             }
+
+            if tx
+                .send(Ok(Bytes::copy_from_slice(&buffer[..read])))
+                .await
+                .is_err()
+            {
+                return Ok(());
+            }
+
+            remaining -= read as u64;
         }
+
+        loop {
+            match live.recv().await {
+                Ok(bytes) => {
+                    if tx.send(Ok(bytes)).await.is_err() {
+                        break;
+                    }
+                },
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
+                    let bytes = Bytes::from(format!("[skipped {count} log messages]\n"));
+
+                    if tx.send(Ok(bytes)).await.is_err() {
+                        break;
+                    }
+                },
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    break;
+                },
+            }
+        }
+
         Ok::<(), Error>(())
     });
 
