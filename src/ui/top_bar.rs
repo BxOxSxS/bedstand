@@ -97,19 +97,16 @@ impl TopBar {
                 }
             }
             TopBarMessage::BatteryChanged(b) => match b {
-                Some(b) => {
+                Some(b)
                     if b <= global_app_state()
                         .config
                         .blocking_read()
                         .battery
-                        .show_threshold
-                    {
-                        self.battery_string = format!(" {}%", b);
-                    } else {
-                        self.battery_string = String::new();
-                    }
+                        .show_threshold =>
+                {
+                    self.battery_string = format!(" {}%", b);
                 }
-                None => {
+                Some(_) | None => {
                     self.battery_string = String::new();
                 }
             },
