@@ -56,8 +56,8 @@
         pre {
             margin: 8px 0 0;
             padding: 8px;
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
+            white-space: pre;
+            overflow-wrap: normal;
             max-height: 500px;
             overflow: auto;
         }
@@ -72,7 +72,6 @@
         }
     </style>
 </head>
-
 <body>
 <details id="logsSection" open>
     <summary>Logs</summary>
@@ -177,6 +176,9 @@
 </details>
 
 <script>
+    const streamControllers = new Map();
+    const streamFrames = new Map();
+
     async function request(url, options = {}) {
         const response = await fetch(url, options);
         const text = await response.text();
@@ -324,8 +326,82 @@
     async function getStream(name, outputId) {
         const output = document.getElementById(outputId);
 
+        const previousController = streamControllers.get(name);
+        if (previousController) {
+            previousController.abort();
+        }
+
+        const previousFrame = streamFrames.get(name);
+        if (previousFrame !== undefined) {
+            cancelAnimationFrame(previousFrame);
+            streamFrames.delete(name);
+        }
+
+        const controller = new AbortController();
+        streamControllers.set(name, controller);
+
+        const textNode = document.createTextNode("");
+        output.replaceChildren(textNode);
+
+        let pending = "";
+
+        function flush() {
+            if (!pending) {
+                return;
+            }
+
+            const wasAtBottom =
+                output.scrollTop + output.clientHeight >=
+                output.scrollHeight - 10;
+
+            textNode.appendData(pending);
+            pending = "";
+
+            if (wasAtBottom) {
+                output.scrollTop = output.scrollHeight;
+            }
+        }
+
+        function scheduleFlush() {
+            if (streamControllers.get(name) !== controller) {
+                return;
+            }
+
+            if (streamFrames.has(name)) {
+                return;
+            }
+
+            const frame = requestAnimationFrame(() => {
+                streamFrames.delete(name);
+
+                if (streamControllers.get(name) !== controller) {
+                    return;
+                }
+
+                flush();
+            });
+
+            streamFrames.set(name, frame);
+        }
+
+        function flushNow() {
+            if (streamControllers.get(name) !== controller) {
+                return;
+            }
+
+            const frame = streamFrames.get(name);
+            if (frame !== undefined) {
+                cancelAnimationFrame(frame);
+                streamFrames.delete(name);
+            }
+
+            flush();
+        }
+
         try {
-            const response = await fetch("/settings/" + name);
+            const response = await fetch("/settings/" + name, {
+                signal: controller.signal
+            });
 
             if (!response.ok || !response.body) {
                 throw new Error(
@@ -344,24 +420,34 @@
                     break;
                 }
 
-                output.textContent += decoder.decode(value, {
+                pending += decoder.decode(value, {
                     stream: true
                 });
 
-                scrollToBottom(outputId);
+                scheduleFlush();
             }
 
-            output.textContent += decoder.decode();
-            output.textContent += "\n[" + name + " stream closed]\n";
-            scrollToBottom(outputId);
+            pending += decoder.decode();
+            pending += "\n[" + name + " stream closed]\n";
+            flushNow();
         } catch (e) {
-            output.textContent += "\n[" + name + " stream closed]\n";
-            scrollToBottom(outputId);
+            if (e.name === "AbortError") {
+                return;
+            }
+
+            pending += "\n[" + name + " stream closed]\n";
+            flushNow();
+        } finally {
+            if (streamControllers.get(name) === controller) {
+                streamControllers.delete(name);
+
+                const frame = streamFrames.get(name);
+                if (frame !== undefined) {
+                    cancelAnimationFrame(frame);
+                    streamFrames.delete(name);
+                }
+            }
         }
-    }
-    function scrollToBottom(id) {
-        const output = document.getElementById(id);
-        output.scrollTop = output.scrollHeight;
     }
 
     loadLogs();
