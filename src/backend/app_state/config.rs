@@ -41,7 +41,6 @@ impl Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub log: LogConfig,
     pub window: WindowConfig,
     pub appearance: AppearanceConfig,
     pub http: HttpConfig,
@@ -56,12 +55,6 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub split_timeout: Duration,
     pub remote_battery_show_threshold: u8,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct LogConfig {
-    pub broadcast_capacity: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,7 +177,6 @@ pub struct TranslationConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            log: LogConfig::default(),
             window: WindowConfig::default(),
             appearance: AppearanceConfig::default(),
             http: HttpConfig::default(),
@@ -197,14 +189,6 @@ impl Default for Config {
             remote_battery_show_threshold: 100,
             split_timeout: Duration::from_secs(60),
             translation: TranslationConfig::default(),
-        }
-    }
-}
-
-impl Default for LogConfig {
-    fn default() -> Self {
-        Self {
-            broadcast_capacity: 2048,
         }
     }
 }

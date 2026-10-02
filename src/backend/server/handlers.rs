@@ -177,17 +177,17 @@ pub async fn logs() -> Result<Response<Body>> {
                     if tx.send(Ok(bytes)).await.is_err() {
                         break;
                     }
-                },
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
                     let bytes = Bytes::from(format!("[skipped {count} log messages]\n"));
 
                     if tx.send(Ok(bytes)).await.is_err() {
                         break;
                     }
-                },
+                }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     break;
-                },
+                }
             }
         }
 

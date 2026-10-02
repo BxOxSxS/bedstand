@@ -26,11 +26,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new() -> Result<AppState> {
+    pub fn new(logs: LogLayer) -> Result<AppState> {
         let config = config::Config::load().add().unwrap_or_default();
         let data = data::Data::default();
         let hardware = HardwareState::blank();
-        let logs = LogLayer::new(config.log.broadcast_capacity).add()?;
 
         Ok(AppState {
             config: RwLock::new(config),

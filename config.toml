@@ -11,16 +11,6 @@
 #remote_battery_show_threshold = 100
 
 
-[log]
-# Number of log messages retained for live HTTP clients
-# If a client falls behind, old messages are dropped and the client is notified
-# Value is rounded up to the next power of 2. For details see https://docs.rs/tokio/latest/tokio/sync/broadcast/fn.channel.html
-# Example
-#broadcast_capacity = 8192
-# Default
-#broadcast_capacity = 2048
-
-
 [window]
 # Whether to start in fullscreen mode
 # Example

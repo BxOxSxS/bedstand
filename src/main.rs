@@ -8,15 +8,11 @@ use iced::{Error, Font, Size, application, font::Weight, window};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() -> Result<(), Error> {
-    let app_state = backend::app_state::AppState::new().unwrap();
-    let log_layer = app_state.logs.clone();
-
-    backend::app_state::APP_STATE.set(app_state).unwrap();
-
+    let log_layer = log::LogLayer::new().unwrap();
     let filter = EnvFilter::new("warn,bedstand=debug");
     let fmt_layer = fmt::layer()
         .compact()
-        .with_writer(log_layer)
+        .with_writer(log_layer.clone())
         .with_ansi(false)
         .with_thread_names(false)
         .with_thread_ids(false)
@@ -25,6 +21,9 @@ fn main() -> Result<(), Error> {
         .with_target(false)
         .with_filter(filter);
     tracing_subscriber::registry().with(fmt_layer).init();
+
+    let app_state = backend::app_state::AppState::new(log_layer).unwrap();
+    backend::app_state::APP_STATE.set(app_state).unwrap();
 
     let (size, fullscreen);
     // make sure to drop lock

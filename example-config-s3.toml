@@ -1,9 +1,6 @@
 split_timeout = "1m"
 remote_battery_show_threshold = 100
 
-[log]
-broadcast_capacity = 2048
-
 [window]
 fullscreen = true
 width = 1280.0

@@ -10,6 +10,7 @@ use tokio::sync::broadcast;
 use tracing_subscriber::fmt::writer::MakeWriter;
 
 pub const LOG_FILE: &str = "bedstand.log";
+const BROADCAST_CAPACITY: usize = 2048;
 
 #[derive(Debug, Clone)]
 pub struct LogLayer {
@@ -18,9 +19,9 @@ pub struct LogLayer {
 }
 
 impl LogLayer {
-    pub fn new(broadcast_capacity: usize) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let file = File::create(LOG_FILE)?;
-        let (broadcast, _) = broadcast::channel(broadcast_capacity);
+        let (broadcast, _) = broadcast::channel(BROADCAST_CAPACITY);
 
         Ok(Self {
             file: Arc::new(Mutex::new(file)),
