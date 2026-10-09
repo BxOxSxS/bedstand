@@ -1,7 +1,7 @@
 use crate::ui::theme::{clock_text_size, line_height, text_size};
 use chrono::{DateTime, Local};
 use iced::widget::stack;
-use iced::{Element, Font, Length, Subscription, alignment, time, widget::text};
+use iced::{Element, Font, Length, Subscription, alignment, widget::text};
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -70,6 +70,6 @@ impl Clock {
     }
 
     pub(crate) fn subscription(&self) -> Subscription<ClockMessage> {
-        time::every(Duration::from_millis(250)).map(|_| ClockMessage::Tick(Local::now()))
+        crate::ui::timing::aligned_every(Duration::from_secs(1)).map(ClockMessage::Tick)
     }
 }

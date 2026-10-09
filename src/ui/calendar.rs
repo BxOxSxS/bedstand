@@ -70,8 +70,7 @@ impl Calendar {
                 .data
                 .calendar
                 .subscription(CalendarMessage::Update),
-            iced::time::every(std::time::Duration::from_millis(1000))
-                .map(|_| CalendarMessage::Tick(Local::now())),
+            crate::ui::timing::local_day_changes().map(CalendarMessage::Tick),
         ])
     }
 

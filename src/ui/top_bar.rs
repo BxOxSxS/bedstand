@@ -3,7 +3,7 @@ use crate::backend::server::trigger_ask_update;
 use crate::ui::theme::{line_height, text_size};
 use chrono::{DateTime, Local};
 use iced::widget::{container, mouse_area, row, space, stack, text};
-use iced::{Element, Length, Subscription, time};
+use iced::{Element, Length, Subscription};
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -148,7 +148,7 @@ impl TopBar {
 
     pub fn subscription(&self) -> Subscription<TopBarMessage> {
         Subscription::batch([
-            time::every(Duration::from_millis(1000)).map(|_| TopBarMessage::Tick(Local::now())),
+            crate::ui::timing::aligned_every(Duration::from_secs(1)).map(TopBarMessage::Tick),
             global_app_state()
                 .data
                 .alarm
