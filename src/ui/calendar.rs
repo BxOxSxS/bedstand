@@ -55,6 +55,10 @@ impl Calendar {
 
                 if tomorrow_header != self.tomorrow_header {
                     self.tomorrow_header = tomorrow_header;
+
+                    // day changed so need to re-sort events for today and tomorrow
+                    let events = global_app_state().data.calendar.get();
+                    self.sort_events(events);
                 }
             }
         }
