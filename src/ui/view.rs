@@ -1,17 +1,15 @@
 use crate::backend::{self, app_state::global_app_state, hardware::proximity::ProximityState};
 use crate::error::*;
-use crate::ui::calendar::{Calendar, CalendarMessage};
+use crate::ui::card_panel::{CardPanel, CardPanelMessage};
 use crate::ui::clock::{Clock, ClockMessage};
-use crate::ui::tap_scroll::tap_scroll;
-use crate::ui::theme::{line_height, style, text_size};
+use crate::ui::theme::{line_height, text_size};
 use crate::ui::top_bar::{TopBar, TopBarMessage};
 use iced::{
     Element, Length, Subscription, Vector, event,
     futures::stream::{self, BoxStream},
     time,
     widget::{
-        Column, Container, MouseArea, Space, column, container, float, mouse_area, row, scrollable,
-        stack, text,
+        Column, Container, MouseArea, Space, column, container, float, mouse_area, row, stack, text,
     },
 };
 use rand::seq::SliceRandom;
@@ -21,12 +19,12 @@ use tracing::{debug, info};
 pub enum ViewMessage {
     Clock(ClockMessage),
     TopBar(TopBarMessage),
-    Calendar(CalendarMessage),
+    CardPanel(CardPanelMessage),
     DriftTick,
     ClockPressed,
     AnyClick,
     SplitTimeout,
-    CalendarPressed,
+    CardPanelPressed,
     Proximity(ProximityState),
     OffPressed,
     ScreenOn,
@@ -35,7 +33,7 @@ pub enum ViewMessage {
 enum ViewState {
     Clock,
     Split,
-    Calendar,
+    Full,
 
     Off,
 }
@@ -43,7 +41,7 @@ enum ViewState {
 pub struct View {
     clock: Clock,
     top_bar: TopBar,
-    calendar: Calendar,
+    card_panel: CardPanel,
 
     drift: Drift,
 
@@ -76,7 +74,7 @@ impl View {
         Self {
             clock: Clock::new(),
             top_bar,
-            calendar: Calendar::new(),
+            card_panel: CardPanel::new(),
 
             drift: Drift::new(),
 
@@ -84,6 +82,26 @@ impl View {
 
             state: ViewState::Clock,
         }
+    }
+
+    fn set_state(&mut self, new_state: ViewState) {
+        if self.state == new_state {
+            return;
+        }
+
+        match (self.state, new_state) {
+            (ViewState::Clock, ViewState::Split) => {
+                self.top_bar.update(TopBarMessage::AskUpdate);
+                self.clock.update(ClockMessage::ToggleSeconds(true));
+            }
+            (_, ViewState::Clock) => {
+                self.clock.update(ClockMessage::ToggleSeconds(false));
+            }
+            _ => {}
+        }
+
+        self.state = new_state;
+        info!("ViewState changed to {:?}", self.state);
     }
 
     pub fn update(&mut self, message: ViewMessage) {
@@ -94,25 +112,22 @@ impl View {
             ViewMessage::TopBar(message) => {
                 self.top_bar.update(message);
             }
-            ViewMessage::Calendar(message) => {
-                self.calendar.update(message);
+            ViewMessage::CardPanel(CardPanelMessage::Pressed) => {
+                self.update(ViewMessage::CardPanelPressed);
+            }
+            ViewMessage::CardPanel(message) => {
+                self.card_panel.update(message);
             }
             ViewMessage::DriftTick => {
                 self.drift.next();
             }
             ViewMessage::ClockPressed => {
-                match self.state {
-                    ViewState::Clock => {
-                        self.top_bar.update(TopBarMessage::AskUpdate);
-                        self.clock.update(ClockMessage::ToggleSeconds(true));
-                        self.state = ViewState::Split;
-                    }
-                    _ => {
-                        self.clock.update(ClockMessage::ToggleSeconds(false));
-                        self.state = ViewState::Clock
-                    }
-                }
-                info!("ViewState changed to {:?}", self.state);
+                let new_state = if self.state == ViewState::Clock {
+                    ViewState::Split
+                } else {
+                    ViewState::Clock
+                };
+                self.set_state(new_state);
             }
             ViewMessage::AnyClick => {
                 let _ = self
@@ -123,43 +138,36 @@ impl View {
             }
             ViewMessage::SplitTimeout => {
                 if self.state != ViewState::Clock && self.state != ViewState::Off {
-                    self.clock.update(ClockMessage::ToggleSeconds(false));
-                    self.state = ViewState::Clock;
+                    self.set_state(ViewState::Clock);
                     info!("Split timeout reached");
                 }
             }
-            ViewMessage::CalendarPressed => {
-                match self.state {
-                    ViewState::Calendar => {
-                        self.state = ViewState::Split;
-                    }
-                    _ => {
-                        self.state = ViewState::Calendar;
-                    }
-                }
-                info!("ViewState changed to {:?}", self.state);
+            ViewMessage::CardPanelPressed => {
+                let new_state = if self.state == ViewState::Full {
+                    ViewState::Split
+                } else {
+                    ViewState::Full
+                };
+                self.set_state(new_state);
             }
             ViewMessage::Proximity(p) => {
                 if p != ProximityState::Near {
                     return;
                 }
-
                 match self.state {
                     ViewState::Clock => {
-                        self.top_bar.update(TopBarMessage::AskUpdate);
-                        self.clock.update(ClockMessage::ToggleSeconds(true));
-                        self.state = ViewState::Split;
+                        self.set_state(ViewState::Split);
                     }
                     ViewState::Split => {
-                        self.state = ViewState::Calendar;
+                        self.set_state(ViewState::Full);
                     }
-                    ViewState::Calendar => {
-                        self.clock.update(ClockMessage::ToggleSeconds(false));
-                        self.state = ViewState::Clock;
+                    ViewState::Full => {
+                        if self.card_panel.next() {
+                            self.set_state(ViewState::Clock);
+                        }
                     }
                     ViewState::Off => {}
                 }
-                info!("ViewState changed to {:?}", self.state);
                 self.update(ViewMessage::AnyClick);
             }
             ViewMessage::OffPressed => {
@@ -178,8 +186,7 @@ impl View {
                         });
                 }
 
-                self.state = ViewState::Off;
-                info!("ViewState changed to {:?}", self.state);
+                self.set_state(ViewState::Off);
             }
             ViewMessage::ScreenOn => {
                 let screen_on_cmd = global_app_state()
@@ -196,8 +203,7 @@ impl View {
                             Error::new(format!("Failed to execute screen on command: {e}"))
                         });
                 }
-
-                self.update(ViewMessage::ClockPressed);
+                self.set_state(ViewState::Clock);
             }
         }
     }
@@ -207,7 +213,7 @@ impl View {
 
         let clock = self.clock.subscription().map(ViewMessage::Clock);
         let top_bar = self.top_bar.subscription().map(ViewMessage::TopBar);
-        let calendar = self.calendar.subscription().map(ViewMessage::Calendar);
+        let card_panel = self.card_panel.subscription().map(ViewMessage::CardPanel);
 
         let drift = time::every(drift_interval).map(|_| ViewMessage::DriftTick);
 
@@ -242,7 +248,7 @@ impl View {
             split_timeout,
             top_bar,
             mouse,
-            calendar,
+            card_panel,
             proximity,
         ])
     }
@@ -259,19 +265,7 @@ impl View {
     fn panel(&self) -> Column<'_, ViewMessage> {
         column![
             self.top_bar.view().map(ViewMessage::TopBar),
-            tap_scroll(self.calendar.view().map(ViewMessage::Calendar),)
-                .style(|theme, status| {
-                    let mut s = scrollable::default(theme, status);
-                    s.vertical_rail.scroller.background = style().text_color.into();
-                    s.horizontal_rail.scroller.background = style().text_color.into();
-                    s
-                })
-                .direction(scrollable::Direction::Vertical(
-                    scrollable::Scrollbar::new().width(2).scroller_width(2),
-                ))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .on_press(ViewMessage::CalendarPressed),
+            self.card_panel.view().map(ViewMessage::CardPanel),
         ]
         .width(Length::Fill)
         .height(Length::Fill)
@@ -298,9 +292,7 @@ impl View {
             .width(Length::Fill)
             .height(Length::Fill)
             .into(),
-
-            ViewState::Calendar => self.panel().into(),
-
+            ViewState::Full => self.panel().into(),
             ViewState::Off => mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
                 .on_press(ViewMessage::ScreenOn)
                 .into(),

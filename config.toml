@@ -10,6 +10,12 @@
 # Default
 #remote_battery_show_threshold = 100
 
+# List of cards to display in the UI. Available cards are: "calendar", "led"
+# Example
+#cards = ["calendar"]
+# Default
+#cards = ["calendar", "led"]
+
 
 [window]
 # Whether to start in fullscreen mode

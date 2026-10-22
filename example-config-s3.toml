@@ -1,5 +1,9 @@
 split_timeout = "1m"
 remote_battery_show_threshold = 100
+cards = [
+    "calendar",
+    "led",
+]
 
 [window]
 fullscreen = true

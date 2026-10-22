@@ -55,6 +55,7 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub split_timeout: Duration,
     pub remote_battery_show_threshold: u8,
+    pub cards: Vec<crate::ui::card_panel::Card>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +190,7 @@ impl Default for Config {
             remote_battery_show_threshold: 100,
             split_timeout: Duration::from_secs(60),
             translation: TranslationConfig::default(),
+            cards: vec![crate::ui::card_panel::Card::Calendar, crate::ui::card_panel::Card::Led],
         }
     }
 }
